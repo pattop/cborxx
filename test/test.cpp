@@ -338,29 +338,29 @@ TEST(codec, int_qword)
 
 	/* encode */
 	c.push_back(4294967296);
-	c.push_back(18446744073709551615ull);
+	c.push_back(18446744073709551615u);
 	c.push_back(-4294967297);
-	c.push_back(-9223372036854775808ull);
+	c.push_back(-9223372036854775807 - 1);	// big integer literals are fun
 
 	/* verify */
 	std::array exp{
 		0x1b_b, 0x00_b, 0x00_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b,	    // unsigned(4294967296)
 		0x1b_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b,	    // unsigned(18446744073709551615)
 		0x3b_b, 0x00_b, 0x00_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b,	    // negative(4294967296)
-		0x3b_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b	    // negative(9223372036854775807)
+		0x3b_b, 0x7f_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b	    // negative(9223372036854775807)
 	};
 	ASSERT_EQ(buf, exp);
 
 	/* decode */
 	EXPECT_EQ(c[0].get<int64_t>(), 4294967296);
-	EXPECT_EQ(c[1].get<uint64_t>(), 18446744073709551615ull);
+	EXPECT_EQ(c[1].get<uint64_t>(), 18446744073709551615u);
 	EXPECT_EQ(c[2].get<int64_t>(), -4294967297);
-	EXPECT_EQ(c[3].get<int64_t>(), -9223372036854775808ull);
+	EXPECT_EQ(c[3].get<int64_t>(), -9223372036854775807 - 1);
 
 	/* type checks */
-	EXPECT_EQ(c[0].type(), cbor::type::int32);
-	EXPECT_EQ(c[1].type(), cbor::type::uint32);
-	EXPECT_EQ(c[2].type(), cbor::type::int32);
+	EXPECT_EQ(c[0].type(), cbor::type::int64);
+	EXPECT_EQ(c[1].type(), cbor::type::uint64);
+	EXPECT_EQ(c[2].type(), cbor::type::int64);
 	EXPECT_EQ(c[3].type(), cbor::type::int64);
 	EXPECT_THROW(c[2].get<unsigned>(), std::range_error);
 	EXPECT_THROW(c[3].get<unsigned>(), std::range_error);
