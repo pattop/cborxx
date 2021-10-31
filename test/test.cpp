@@ -22,7 +22,7 @@ operator==(const std::vector<T> &l, const std::array<T, N> &r)
 
 }
 
-TEST(cbor, codec_null)
+TEST(codec, null)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
@@ -43,7 +43,7 @@ TEST(cbor, codec_null)
 	EXPECT_THROW(c[0].get<float>(), std::runtime_error);
 }
 
-TEST(cbor, codec_bool_true)
+TEST(codec, bool_true)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
@@ -67,7 +67,7 @@ TEST(cbor, codec_bool_true)
 
 }
 
-TEST(cbor, codec_bool_false)
+TEST(codec, bool_false)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
@@ -90,7 +90,7 @@ TEST(cbor, codec_bool_false)
 	EXPECT_THROW(c[0].get<float>(), std::runtime_error);
 }
 
-TEST(cbor, codec_fp_nan)
+TEST(codec, fp_nan)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
@@ -118,7 +118,7 @@ TEST(cbor, codec_fp_nan)
 	}
 }
 
-TEST(cbor, codec_fp_positive_infinity)
+TEST(codec, fp_positive_infinity)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
@@ -148,7 +148,7 @@ TEST(cbor, codec_fp_positive_infinity)
 	}
 }
 
-TEST(cbor, codec_negative_infinity)
+TEST(codec, negative_infinity)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
@@ -178,7 +178,7 @@ TEST(cbor, codec_negative_infinity)
 	}
 }
 
-TEST(cbor, codec_int_inline)
+TEST(codec, int_inline)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
@@ -212,7 +212,7 @@ TEST(cbor, codec_int_inline)
 	}
 }
 
-TEST(cbor, codec_int_byte)
+TEST(codec, int_byte)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
@@ -249,7 +249,7 @@ TEST(cbor, codec_int_byte)
 	}
 }
 
-TEST(codec, codec_int_word)
+TEST(codec, int_word)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
@@ -286,7 +286,7 @@ TEST(codec, codec_int_word)
 	}
 }
 
-TEST(codec, codec_int_dword)
+TEST(codec, int_dword)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
@@ -331,7 +331,7 @@ TEST(codec, codec_int_dword)
 	}
 }
 
-TEST(codec, codec_int_qword)
+TEST(codec, int_qword)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
