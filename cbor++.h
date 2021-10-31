@@ -387,7 +387,8 @@ public:
 			if (ih::get_arg(p_) > std::numeric_limits<int64_t>::max())
 				throw std::range_error("integer overflow");
 			v = -1 - static_cast<int64_t>(ih::get_arg(p_));
-			if (v != -1 - static_cast<int64_t>(ih::get_arg(p_)))
+			if (static_cast<int64_t>(v) !=
+			    -1 - static_cast<int64_t>(ih::get_arg(p_)))
 				throw std::range_error("integer overflow");
 			return v;
 		default:
