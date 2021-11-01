@@ -530,6 +530,7 @@ private:
  * This is for low level manipulation of CBOR encoded data.
  */
 template<class S>
+requires std::is_same_v<typename S::value_type, std::byte>
 class codec {
 public:
 	using reference = data_item<typename S::iterator>;
