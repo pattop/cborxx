@@ -37,398 +37,411 @@ operator==(const L &l, const R &r)
 TEST(codec, null)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(nullptr);
+	cbor::codec e(buf);
+	e.push_back(nullptr);
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0xf6_b		// null
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
+
+	/* decode */
+	const cbor::codec d(exp);
 
 	/* type checks */
-	EXPECT_EQ(c[0].type(), cbor::type::null);
-	EXPECT_THROW(c[0].get<bool>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<float>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
-	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
+	EXPECT_EQ(d[0].type(), cbor::type::null);
+	EXPECT_THROW(d[0].get<bool>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<float>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, bool_true)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(true);
+	cbor::codec e(buf);
+	e.push_back(true);
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0xf5_b		// true
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_TRUE(c[0].get<bool>());
+	const cbor::codec d(exp);
+	EXPECT_TRUE(d[0].get<bool>());
 
 	/* type checks */
-	EXPECT_EQ(c[0].type(), cbor::type::boolean);
-	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<float>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
-	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
+	EXPECT_EQ(d[0].type(), cbor::type::boolean);
+	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<float>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, bool_false)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(false);
+	cbor::codec e(buf);
+	e.push_back(false);
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0xf4_b		// false
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_FALSE(c[0].get<bool>());
+	const cbor::codec d(exp);
+	EXPECT_FALSE(d[0].get<bool>());
 
 	/* type checks */
-	EXPECT_EQ(c[0].type(), cbor::type::boolean);
-	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<float>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
-	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
+	EXPECT_EQ(d[0].type(), cbor::type::boolean);
+	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<float>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, fp_nan)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(std::numeric_limits<float>::quiet_NaN());
-	c.push_back(std::numeric_limits<double>::quiet_NaN());
+	cbor::codec e(buf);
+	e.push_back(std::numeric_limits<float>::quiet_NaN());
+	e.push_back(std::numeric_limits<double>::quiet_NaN());
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0xf9_b, 0x7e_b, 0x00_b,	    // fp16 NaN
 		0xf9_b, 0x7e_b, 0x00_b	    // fp16 NaN
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_TRUE(std::isnan(c[0].get<float>()));
-	EXPECT_TRUE(std::isnan(c[1].get<double>()));
+	const cbor::codec d(exp);
+	EXPECT_TRUE(std::isnan(d[0].get<float>()));
+	EXPECT_TRUE(std::isnan(d[1].get<double>()));
 
 	/* type checks */
-	EXPECT_EQ(c[0].type(), cbor::type::fp32);
-	EXPECT_THROW(c[0].get<bool>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
-	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
+	EXPECT_EQ(d[0].type(), cbor::type::fp32);
+	EXPECT_THROW(d[0].get<bool>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, fp_positive_infinity)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(std::numeric_limits<float>::infinity());
-	c.push_back(std::numeric_limits<double>::infinity());
+	cbor::codec e(buf);
+	e.push_back(std::numeric_limits<float>::infinity());
+	e.push_back(std::numeric_limits<double>::infinity());
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0xf9_b, 0x7c_b, 0x00_b,	    // fp16 +infinity
 		0xf9_b, 0x7c_b, 0x00_b	    // fp16 +infinity
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_GT(c[0].get<float>(), 0);
-	EXPECT_TRUE(std::isinf(c[0].get<float>()));
-	EXPECT_GT(c[1].get<double>(), 0);
-	EXPECT_TRUE(std::isinf(c[0].get<double>()));
+	const cbor::codec d(exp);
+	EXPECT_GT(d[0].get<float>(), 0);
+	EXPECT_TRUE(std::isinf(d[0].get<float>()));
+	EXPECT_GT(d[1].get<double>(), 0);
+	EXPECT_TRUE(std::isinf(d[0].get<double>()));
 
 	/* type checks */
-	EXPECT_EQ(c[0].type(), cbor::type::fp32);
-	EXPECT_THROW(c[0].get<bool>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
-	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
+	EXPECT_EQ(d[0].type(), cbor::type::fp32);
+	EXPECT_THROW(d[0].get<bool>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, fp_negative_infinity)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(-std::numeric_limits<float>::infinity());
-	c.push_back(-std::numeric_limits<double>::infinity());
+	cbor::codec e(buf);
+	e.push_back(-std::numeric_limits<float>::infinity());
+	e.push_back(-std::numeric_limits<double>::infinity());
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0xf9_b, 0xfc_b, 0x00_b,	    // fp16 -infinity
 		0xf9_b, 0xfc_b, 0x00_b	    // fp16 -infinity
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_LT(c[0].get<float>(), 0);
-	EXPECT_TRUE(std::isinf(c[0].get<float>()));
-	EXPECT_LT(c[1].get<double>(), 0);
-	EXPECT_TRUE(std::isinf(c[0].get<double>()));
+	const cbor::codec d(exp);
+	EXPECT_LT(d[0].get<float>(), 0);
+	EXPECT_TRUE(std::isinf(d[0].get<float>()));
+	EXPECT_LT(d[1].get<double>(), 0);
+	EXPECT_TRUE(std::isinf(d[0].get<double>()));
 
 	/* type checks */
-	EXPECT_EQ(c[0].type(), cbor::type::fp32);
-	EXPECT_THROW(c[0].get<bool>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
-	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
-	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
+	EXPECT_EQ(d[0].type(), cbor::type::fp32);
+	EXPECT_THROW(d[0].get<bool>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, int_inline)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(0);
-	c.push_back(23);
-	c.push_back(-1);
-	c.push_back(-24);
+	cbor::codec e(buf);
+	e.push_back(0);
+	e.push_back(23);
+	e.push_back(-1);
+	e.push_back(-24);
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0x00_b,		    // unsigned(0)
 		0x17_b,		    // unsigned(23)
 		0x20_b,		    // negative(0)
 		0x37_b,		    // negative(23)
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_EQ(c[0].get<int>(), 0);
-	EXPECT_EQ(c[1].get<int>(), 23);
-	EXPECT_EQ(c[2].get<int>(), -1);
-	EXPECT_EQ(c[3].get<int>(), -24);
+	const cbor::codec d(exp);
+	EXPECT_EQ(d[0].get<int>(), 0);
+	EXPECT_EQ(d[1].get<int>(), 23);
+	EXPECT_EQ(d[2].get<int>(), -1);
+	EXPECT_EQ(d[3].get<int>(), -24);
 
 	/* type checks */
-	for (size_t i = 0; i < size(c); ++i) {
-		EXPECT_EQ(c[i].type(), cbor::type::int32);
-		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<cbor::tag>(), std::runtime_error);
-		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
+	for (size_t i = 0; i < size(d); ++i) {
+		EXPECT_EQ(d[i].type(), cbor::type::int32);
+		EXPECT_THROW(d[i].get<float>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<cbor::tag>(), std::runtime_error);
+		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
 	}
 }
 
 TEST(codec, int_byte)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(24);
-	c.push_back(255);
-	c.push_back(-25);
-	c.push_back(-256);
+	cbor::codec e(buf);
+	e.push_back(24);
+	e.push_back(255);
+	e.push_back(-25);
+	e.push_back(-256);
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0x18_b, 0x18_b,	    // unsigned(24)
 		0x18_b, 0xff_b,	    // unsigned(255)
 		0x38_b, 0x18_b,	    // negative(24)
 		0x38_b, 0xff_b	    // negative(255)
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_EQ(c[0].get<int>(), 24);
-	EXPECT_EQ(c[1].get<int>(), 255);
-	EXPECT_EQ(c[2].get<int>(), -25);
-	EXPECT_EQ(c[3].get<int>(), -256);
+	const cbor::codec d(exp);
+	EXPECT_EQ(d[0].get<int>(), 24);
+	EXPECT_EQ(d[1].get<int>(), 255);
+	EXPECT_EQ(d[2].get<int>(), -25);
+	EXPECT_EQ(d[3].get<int>(), -256);
 
 	/* type checks */
-	EXPECT_THROW(c[2].get<unsigned>(), std::range_error);
-	EXPECT_THROW(c[3].get<unsigned>(), std::range_error);
-	EXPECT_THROW(c[3].get<int8_t>(), std::range_error);
-	for (size_t i = 0; i < size(c); ++i) {
-		EXPECT_EQ(c[i].type(), cbor::type::int32);
-		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<cbor::tag>(), std::runtime_error);
-		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
+	EXPECT_THROW(d[2].get<unsigned>(), std::range_error);
+	EXPECT_THROW(d[3].get<unsigned>(), std::range_error);
+	EXPECT_THROW(d[3].get<int8_t>(), std::range_error);
+	for (size_t i = 0; i < size(d); ++i) {
+		EXPECT_EQ(d[i].type(), cbor::type::int32);
+		EXPECT_THROW(d[i].get<float>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<cbor::tag>(), std::runtime_error);
+		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
 	}
 }
 
 TEST(codec, int_word)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(256);
-	c.push_back(65535);
-	c.push_back(-257);
-	c.push_back(-65536);
+	cbor::codec e(buf);
+	e.push_back(256);
+	e.push_back(65535);
+	e.push_back(-257);
+	e.push_back(-65536);
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0x19_b, 0x01_b, 0x00_b,	    // unsigned(256)
 		0x19_b, 0xff_b, 0xff_b,	    // unsigned(65535)
 		0x39_b, 0x01_b, 0x00_b,	    // negative(256)
 		0x39_b, 0xff_b, 0xff_b	    // negative(65536)
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_EQ(c[0].get<int>(), 256);
-	EXPECT_EQ(c[1].get<int>(), 65535);
-	EXPECT_EQ(c[2].get<int>(), -257);
-	EXPECT_EQ(c[3].get<int>(), -65536);
+	const cbor::codec d(exp);
+	EXPECT_EQ(d[0].get<int>(), 256);
+	EXPECT_EQ(d[1].get<int>(), 65535);
+	EXPECT_EQ(d[2].get<int>(), -257);
+	EXPECT_EQ(d[3].get<int>(), -65536);
 
 	/* type checks */
-	EXPECT_THROW(c[2].get<unsigned>(), std::range_error);
-	EXPECT_THROW(c[3].get<unsigned>(), std::range_error);
-	EXPECT_THROW(c[3].get<int16_t>(), std::range_error);
-	for (size_t i = 0; i < size(c); ++i) {
-		EXPECT_EQ(c[i].type(), cbor::type::int32);
-		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<cbor::tag>(), std::runtime_error);
-		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
+	EXPECT_THROW(d[2].get<unsigned>(), std::range_error);
+	EXPECT_THROW(d[3].get<unsigned>(), std::range_error);
+	EXPECT_THROW(d[3].get<int16_t>(), std::range_error);
+	for (size_t i = 0; i < size(d); ++i) {
+		EXPECT_EQ(d[i].type(), cbor::type::int32);
+		EXPECT_THROW(d[i].get<float>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<cbor::tag>(), std::runtime_error);
+		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
 	}
 }
 
 TEST(codec, int_dword)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(65536);
-	c.push_back(4294967295);
-	c.push_back(-65537);
-	c.push_back(-2147483648);
-	c.push_back(-4294967296);
+	cbor::codec e(buf);
+	e.push_back(65536);
+	e.push_back(4294967295);
+	e.push_back(-65537);
+	e.push_back(-2147483648);
+	e.push_back(-4294967296);
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0x1a_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b,	    // unsigned(65536)
 		0x1a_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b,	    // unsigned(4294967295)
 		0x3a_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b,	    // negative(65536)
 		0x3a_b, 0x7F_b, 0xff_b, 0xff_b, 0xff_b,	    // negative(2147483647)
 		0x3a_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b	    // negative(4294967295)
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_EQ(c[0].get<int>(), 65536);
-	EXPECT_EQ(c[1].get<uint32_t>(), 4294967295);
-	EXPECT_EQ(c[2].get<int>(), -65537);
-	EXPECT_EQ(c[3].get<int>(), -2147483648);
-	EXPECT_EQ(c[4].get<int64_t>(), -4294967296);
+	const cbor::codec d(exp);
+	EXPECT_EQ(d[0].get<int>(), 65536);
+	EXPECT_EQ(d[1].get<uint32_t>(), 4294967295);
+	EXPECT_EQ(d[2].get<int>(), -65537);
+	EXPECT_EQ(d[3].get<int>(), -2147483648);
+	EXPECT_EQ(d[4].get<int64_t>(), -4294967296);
 
 	/* type checks */
-	EXPECT_EQ(c[0].type(), cbor::type::int32);
-	EXPECT_EQ(c[1].type(), cbor::type::uint32);
-	EXPECT_EQ(c[2].type(), cbor::type::int32);
-	EXPECT_EQ(c[3].type(), cbor::type::int32);
-	EXPECT_EQ(c[4].type(), cbor::type::int64);
-	EXPECT_THROW(c[2].get<unsigned>(), std::range_error);
-	EXPECT_THROW(c[3].get<unsigned>(), std::range_error);
-	EXPECT_THROW(c[4].get<unsigned>(), std::range_error);
-	EXPECT_THROW(c[4].get<int32_t>(), std::range_error);
-	for (size_t i = 0; i < size(c); ++i) {
-		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<cbor::tag>(), std::runtime_error);
-		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
+	EXPECT_EQ(d[0].type(), cbor::type::int32);
+	EXPECT_EQ(d[1].type(), cbor::type::uint32);
+	EXPECT_EQ(d[2].type(), cbor::type::int32);
+	EXPECT_EQ(d[3].type(), cbor::type::int32);
+	EXPECT_EQ(d[4].type(), cbor::type::int64);
+	EXPECT_THROW(d[2].get<unsigned>(), std::range_error);
+	EXPECT_THROW(d[3].get<unsigned>(), std::range_error);
+	EXPECT_THROW(d[4].get<unsigned>(), std::range_error);
+	EXPECT_THROW(d[4].get<int32_t>(), std::range_error);
+	for (size_t i = 0; i < size(d); ++i) {
+		EXPECT_THROW(d[i].get<float>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<cbor::tag>(), std::runtime_error);
+		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
 	}
 }
 
 TEST(codec, int_qword)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
-	c.push_back(4294967296);
-	c.push_back(18446744073709551615u);
-	c.push_back(-4294967297);
-	c.push_back(-9223372036854775807 - 1);	// big integer literals are fun
+	cbor::codec e(buf);
+	e.push_back(4294967296);
+	e.push_back(18446744073709551615u);
+	e.push_back(-4294967297);
+	e.push_back(-9223372036854775807 - 1);	// big integer literals are fun
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0x1b_b, 0x00_b, 0x00_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b,	    // unsigned(4294967296)
 		0x1b_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b,	    // unsigned(18446744073709551615)
 		0x3b_b, 0x00_b, 0x00_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b,	    // negative(4294967296)
 		0x3b_b, 0x7f_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b	    // negative(9223372036854775807)
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_EQ(c[0].get<int64_t>(), 4294967296);
-	EXPECT_EQ(c[1].get<uint64_t>(), 18446744073709551615u);
-	EXPECT_EQ(c[2].get<int64_t>(), -4294967297);
-	EXPECT_EQ(c[3].get<int64_t>(), -9223372036854775807 - 1);
+	const cbor::codec d(exp);
+	EXPECT_EQ(d[0].get<int64_t>(), 4294967296);
+	EXPECT_EQ(d[1].get<uint64_t>(), 18446744073709551615u);
+	EXPECT_EQ(d[2].get<int64_t>(), -4294967297);
+	EXPECT_EQ(d[3].get<int64_t>(), -9223372036854775807 - 1);
 
 	/* type checks */
-	EXPECT_EQ(c[0].type(), cbor::type::int64);
-	EXPECT_EQ(c[1].type(), cbor::type::uint64);
-	EXPECT_EQ(c[2].type(), cbor::type::int64);
-	EXPECT_EQ(c[3].type(), cbor::type::int64);
-	EXPECT_THROW(c[2].get<unsigned>(), std::range_error);
-	EXPECT_THROW(c[3].get<unsigned>(), std::range_error);
-	EXPECT_THROW(c[3].get<int32_t>(), std::range_error);
-	for (size_t i = 0; i < size(c); ++i) {
-		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<cbor::tag>(), std::runtime_error);
-		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
+	EXPECT_EQ(d[0].type(), cbor::type::int64);
+	EXPECT_EQ(d[1].type(), cbor::type::uint64);
+	EXPECT_EQ(d[2].type(), cbor::type::int64);
+	EXPECT_EQ(d[3].type(), cbor::type::int64);
+	EXPECT_THROW(d[2].get<unsigned>(), std::range_error);
+	EXPECT_THROW(d[3].get<unsigned>(), std::range_error);
+	EXPECT_THROW(d[3].get<int32_t>(), std::range_error);
+	for (size_t i = 0; i < size(d); ++i) {
+		EXPECT_THROW(d[i].get<float>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<cbor::tag>(), std::runtime_error);
+		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
 	}
 }
 
 TEST(codec, int_qword_overflow)
 {
 	/* CBOR can encode 64-bit -ve numbers which don't fit in int64_t */
-	std::array buf {
+	const std::array buf {
 		0x3b_b, 0x80_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b,	    // negative(9223372036854775808)
 		0x3b_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b	    // negative(18446744073709551615)
 	};
-	cbor::codec c(buf);
+	const cbor::codec d(buf);
 
 	/* overflow checks */
-	EXPECT_THROW(c[0].get<int64_t>(), std::range_error);
-	EXPECT_THROW(c[1].get<int64_t>(), std::range_error);
+	EXPECT_THROW(d[0].get<int64_t>(), std::range_error);
+	EXPECT_THROW(d[1].get<int64_t>(), std::range_error);
 }
 
 TEST(codec, bignum)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	/* encode */
+	cbor::codec e(buf);
 	std::array int256{
 		0xdd_b, 0xf7_b, 0xff_b, 0x5e_b, 0xbd_b, 0x9d_b, 0x66_b, 0xce_b,
 		0x16_b, 0x14_b, 0x66_b, 0xc1_b, 0xc0_b, 0x26_b, 0x24_b, 0x30_b,
 		0xfa_b, 0x04_b, 0xde_b, 0x32_b, 0xb0_b, 0xe4_b, 0x20_b, 0xee_b,
 		0x3f_b, 0x48_b, 0x9e_b, 0x2e_b, 0x21_b, 0x12_b, 0xe3_b, 0x86_b
 	};
-	c.push_back(cbor::tag::pos_bignum);
-	c.push_back(int256);
+	e.push_back(cbor::tag::pos_bignum);
+	e.push_back(int256);
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0xc2_b,			// tag(2)
 		0x58_b, 0x20_b,		// bytes(32)
 		0xdd_b, 0xf7_b, 0xff_b, 0x5e_b, 0xbd_b, 0x9d_b, 0x66_b, 0xce_b,
@@ -436,21 +449,21 @@ TEST(codec, bignum)
 		0xfa_b, 0x04_b, 0xde_b, 0x32_b, 0xb0_b, 0xe4_b, 0x20_b, 0xee_b,
 		0x3f_b, 0x48_b, 0x9e_b, 0x2e_b, 0x21_b, 0x12_b, 0xe3_b, 0x86_b
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_EQ(c[0].get<cbor::tag>(), cbor::tag::pos_bignum);
-	EXPECT_EQ(c[1].get_bytes(), int256);
+	const cbor::codec d(exp);
+	EXPECT_EQ(d[0].get<cbor::tag>(), cbor::tag::pos_bignum);
+	EXPECT_EQ(d[1].get_bytes(), int256);
 
 	/* type checks */
-	EXPECT_EQ(c[0].type(), cbor::type::tag);
-	EXPECT_EQ(c[1].type(), cbor::type::bytes);
+	EXPECT_EQ(d[0].type(), cbor::type::tag);
+	EXPECT_EQ(d[1].type(), cbor::type::bytes);
 }
 
 TEST(codec, tags)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	std::array tags = {
 		static_cast<cbor::tag>(0),
@@ -467,14 +480,15 @@ TEST(codec, tags)
 	};
 
 	/* encode */
+	cbor::codec e(buf);
 	for (auto &t : tags)
-		c.push_back(t);
+		e.push_back(t);
 	for (auto &t : invalid_tags)
-		EXPECT_THROW(c.push_back(t), std::invalid_argument);
-	c.push_back(0);
+		EXPECT_THROW(e.push_back(t), std::invalid_argument);
+	e.push_back(0);
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0xc0_b,                                     // tag(0)
 		0xd7_b,					    // tag(23)
 		0xd8_b, 0x18_b,                             // tag(24)
@@ -483,42 +497,44 @@ TEST(codec, tags)
 		0xdb_b, 0x00_b, 0x00_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b,	// tag(4294967296)
 		0x00_b
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
+	const cbor::codec d(exp);
 	for (auto i = 0u; i < size(tags); ++i)
-		EXPECT_EQ(c[i].get<cbor::tag>(), tags[i]);
-	EXPECT_EQ(c[size(tags)].get<int>(), 0);
+		EXPECT_EQ(d[i].get<cbor::tag>(), tags[i]);
+	EXPECT_EQ(d[size(tags)].get<int>(), 0);
 
 	/* type checks */
 	for (auto i = 0u; i < size(tags); ++i) {
-		EXPECT_EQ(c[i].type(), cbor::type::tag);
-		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<int>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
-		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
+		EXPECT_EQ(d[i].type(), cbor::type::tag);
+		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<int>(), std::runtime_error);
+		EXPECT_THROW(d[i].get<float>(), std::runtime_error);
+		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
 	}
 }
 
 TEST(codec, bytes)
 {
 	std::vector<std::byte> buf;
-	cbor::codec c(buf);
 
 	std::array v{
 		0xca_b, 0xfe_b, 0xbe_b, 0xef_b
 	};
 
 	/* encode */
-	c.push_back(v);
+	cbor::codec e(buf);
+	e.push_back(v);
 
 	/* verify */
-	std::array exp{
+	const std::array exp{
 		0x44_b,	    // bytes(4)
 		0xca_b, 0xfe_b, 0xbe_b, 0xef_b,
 	};
-	ASSERT_EQ(buf, exp);
+	EXPECT_EQ(buf, exp);
 
 	/* decode */
-	EXPECT_EQ(c[0].get_bytes(), v);
+	const cbor::codec d(exp);
+	EXPECT_EQ(d[0].get_bytes(), v);
 }
