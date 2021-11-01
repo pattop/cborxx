@@ -439,6 +439,25 @@ public:
 		}
 	}
 
+	template<class T>
+	requires std::is_same_v<T, cbor::tag>
+	cbor::tag
+	get() const
+	{
+		if (ih::get_major(p_) != ih::major::tag)
+			throw std::runtime_error("data is not a tag");
+		return static_cast<cbor::tag>(ih::get_arg(p_));
+	}
+
+	std::span<const typename std::iterator_traits<I>::value_type>
+	get_bytes() const
+	{
+		if (ih::get_major(p_) != ih::major::bytes)
+			throw std::runtime_error("data is not bytes");
+		auto ih_sz = ih::get_ih_size(p_);
+		return {p_ + ih_sz, p_ + ih_sz + ih::get_data_size(p_)};
+	}
+
 	cbor::type
 	type() const
 	{
@@ -754,6 +773,33 @@ public:
 	}
 
 private:
+	template<class U>
+	requires std::is_unsigned_v<U>
+	typename S::iterator
+	encode_ih(typename S::iterator p, ih::major m, U arg)
+	{
+		if (arg <= 23)
+			return s_.insert(p, ih::make(m, arg)) + 1;
+		else if (arg <= std::numeric_limits<uint8_t>::max()) {
+			std::array<std::byte, 2> b{
+				ih::make(m, ih::ai::byte),
+				static_cast<std::byte>(arg)};
+			return s_.insert(p, begin(b), end(b)) + std::size(b);
+		} else if (arg <= std::numeric_limits<uint16_t>::max()) {
+			std::array<std::byte, 3> b{ih::make(m, ih::ai::word)};
+			write_be(&b[1], static_cast<uint16_t>(arg));
+			return s_.insert(p, begin(b), end(b)) + std::size(b);
+		} else if (arg <= std::numeric_limits<uint32_t>::max()) {
+			std::array<std::byte, 5> b{ih::make(m, ih::ai::dword)};
+			write_be(&b[1], static_cast<uint32_t>(arg));
+			return s_.insert(p, begin(b), end(b)) + std::size(b);
+		} else {
+			std::array<std::byte, 9> b{ih::make(m, ih::ai::qword)};
+			write_be(&b[1], arg);
+			return s_.insert(p, begin(b), end(b)) + std::size(b);
+		}
+	}
+
 	template<class T>
 	requires std::is_floating_point_v<T>
 	void
@@ -790,28 +836,8 @@ private:
 	void
 	encode(typename S::iterator p, T v)
 	{
-		auto mt = v < 0 ? ih::major::negint : ih::major::posint;
-		std::make_unsigned_t<T> u = v < 0 ? -v - 1 : v;
-		if (u <= 23)
-			s_.insert(p, ih::make(mt, u));
-		else if (u <= std::numeric_limits<uint8_t>::max()) {
-			std::array<std::byte, 2> b{
-				ih::make(mt, ih::ai::byte),
-				static_cast<std::byte>(u)};
-			s_.insert(p, begin(b), end(b));
-		} else if (u <= std::numeric_limits<uint16_t>::max()) {
-			std::array<std::byte, 3> b{ih::make(mt, ih::ai::word)};
-			write_be(&b[1], static_cast<uint16_t>(u));
-			s_.insert(p, begin(b), end(b));
-		} else if (u <= std::numeric_limits<uint32_t>::max()) {
-			std::array<std::byte, 5> b{ih::make(mt, ih::ai::dword)};
-			write_be(&b[1], static_cast<uint32_t>(u));
-			s_.insert(p, begin(b), end(b));
-		} else {
-			std::array<std::byte, 9> b{ih::make(mt, ih::ai::qword)};
-			write_be(&b[1], u);
-			s_.insert(p, begin(b), end(b));
-		}
+		encode_ih(p, v < 0 ? ih::major::negint : ih::major::posint,
+			  std::make_unsigned_t<T>(v < 0 ? -v - 1 : v));
 	}
 
 	void
@@ -824,6 +850,23 @@ private:
 	encode(typename S::iterator p, bool v)
 	{
 		s_.insert(p, v ? ih::bool_true : ih::bool_false);
+	}
+
+	void
+	encode(typename S::iterator p, tag t)
+	{
+		if (t == tag::invalid_1 || t == tag::invalid_2 ||
+		    t == tag::invalid_3)
+			throw std::invalid_argument("tag value is invalid");
+		encode_ih(p, ih::major::tag,
+			  static_cast<std::underlying_type_t<tag>>(t));
+	}
+
+	void
+	encode(typename S::iterator p, std::span<const typename S::value_type> v)
+	{
+		s_.insert(encode_ih(p, ih::major::bytes, std::size(v)),
+			  begin(v), end(v));
 	}
 
 	S &s_;
