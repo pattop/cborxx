@@ -148,7 +148,7 @@ TEST(codec, fp_positive_infinity)
 	}
 }
 
-TEST(codec, negative_infinity)
+TEST(codec, fp_negative_infinity)
 {
 	std::vector<std::byte> buf;
 	cbor::codec c(buf);
