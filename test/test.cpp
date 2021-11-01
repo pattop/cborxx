@@ -499,3 +499,26 @@ TEST(codec, tags)
 		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
 	}
 }
+
+TEST(codec, bytes)
+{
+	std::vector<std::byte> buf;
+	cbor::codec c(buf);
+
+	std::array v{
+		0xca_b, 0xfe_b, 0xbe_b, 0xef_b
+	};
+
+	/* encode */
+	c.push_back(v);
+
+	/* verify */
+	std::array exp{
+		0x44_b,	    // bytes(4)
+		0xca_b, 0xfe_b, 0xbe_b, 0xef_b,
+	};
+	ASSERT_EQ(buf, exp);
+
+	/* decode */
+	EXPECT_EQ(c[0].get_bytes(), v);
+}
