@@ -11,9 +11,19 @@ using namespace cbor::literals;
  */
 namespace testing::internal {
 
-template<class T, std::size_t N>
+/*
+ * Teach C++ how to compare things like vector<byte> and array<byte>
+ */
+template<class L, class R>
+requires requires (L l, R r) {
+	size(l);
+	size(r);
+	begin(l);
+	begin(r);
+	end(l);
+} && std::is_same_v<typename L::value_type, typename R::value_type>
 bool
-operator==(const std::vector<T> &l, const std::array<T, N> &r)
+operator==(const L &l, const R &r)
 {
 	if (size(l) != size(r))
 		return false;
