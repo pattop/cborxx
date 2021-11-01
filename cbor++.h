@@ -59,6 +59,21 @@ enum class type {
 };
 
 /*
+ * tag - some CBOR tag values
+ *
+ * See https://www.iana.org/assignments/cbor-tags.
+ */
+enum class tag : uint64_t {
+	date_time_string = 0,		    /* string, RFC8949 3.4.1 */
+	date_time_epoch = 1,		    /* int or float, RFC8949 3.4.2 */
+	pos_bignum = 2,			    /* bytes, RFC8949 3.4.3 */
+	neg_bignum = 3,			    /* bytes, RFC8949 3.4.3 */
+	invalid_1 = 65535,		    /* always invalid */
+	invalid_2 = 4294967295,		    /* always invalid */
+	invalid_3 = 18446744073709551615u,  /* always invalid */
+};
+
+/*
  * ih - definitions & functions related to the CBOR item head
  *
  * A CBOR item head is made up of an inital byte containing a 3-bit major type
