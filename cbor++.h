@@ -74,6 +74,87 @@ enum class tag : uint64_t {
 };
 
 /*
+ * byteswap - byteswap a value
+ *
+ * Unfortunately current versions of gcc (11.2) and clang (13.0.0) generally
+ * don't optimise std::reverse down to byteswap instructions, and std::byteswap
+ * isn't available until c++23.
+ *
+ * There are countless ways to write this function. The following tries to use
+ * as much standard c++ as possible and avoid casting and undefined behaviour.
+ */
+inline
+auto
+byteswap(auto v)
+{
+	auto vb = as_writable_bytes(std::span(&v, 1));
+	std::span<std::byte> tb;
+	union {
+		uint16_t t16;
+		uint32_t t32;
+		uint64_t t64;
+	};
+
+	static_assert(sizeof v == 2 || sizeof v == 4 || sizeof v == 8,
+		      "Are you sure you want to byteswap that?");
+
+	switch (sizeof v) {
+	case 2:
+		tb = as_writable_bytes(std::span(&t16, 1));
+		std::copy(begin(vb), end(vb), begin(tb));
+		t16 = __builtin_bswap16(t16);
+		break;
+	case 4:
+		tb = as_writable_bytes(std::span(&t32, 1));
+		std::copy(begin(vb), end(vb), begin(tb));
+		t32 = __builtin_bswap32(t32);
+		break;
+	case 8:
+		tb = as_writable_bytes(std::span(&t64, 1));
+		std::copy(begin(vb), end(vb), begin(tb));
+		t64 = __builtin_bswap64(t64);
+		break;
+	}
+
+	std::copy(begin(tb), end(tb), begin(vb));
+	return v;
+}
+
+/*
+ * write_be - write a big endian value to byte iterator 'p'
+ */
+inline
+void
+write_be(auto p, auto v)
+{
+	auto vb = as_writable_bytes(std::span(&v, 1));
+	if (std::endian::native != std::endian::big) {
+		/* equivalent to std::reverse(begin(vb), end(vb)) but
+		 * optimises properly */
+		v = byteswap(v);
+	}
+	std::copy(begin(vb), end(vb), p);
+}
+
+/*
+ * read_be - read a big endian value from byte iterator 'p'
+ */
+template<class T>
+T
+read_be(auto p)
+{
+	T v;
+	auto vb = as_writable_bytes(std::span(&v, 1));
+	std::copy(p, p + sizeof v, begin(vb));
+	if (std::endian::native != std::endian::big) {
+		/* equivalent to std::reverse(begin(vb), end(vb)) but
+		 * optimises properly */
+		v = byteswap(v);
+	}
+	return v;
+}
+
+/*
  * ih - definitions & functions related to the CBOR item head
  *
  * A CBOR item head is made up of an inital byte containing a 3-bit major type
@@ -279,87 +360,6 @@ get_size(auto p)
 	return get_ih_size(p) + get_data_size(p);
 }
 
-}
-
-/*
- * byteswap - byteswap a value
- *
- * Unfortunately current versions of gcc (11.2) and clang (13.0.0) generally
- * don't optimise std::reverse down to byteswap instructions, and std::byteswap
- * isn't available until c++23.
- *
- * There are countless ways to write this function. The following tries to use
- * as much standard c++ as possible and avoid casting and undefined behaviour.
- */
-inline
-auto
-byteswap(auto v)
-{
-	auto vb = as_writable_bytes(std::span(&v, 1));
-	std::span<std::byte> tb;
-	union {
-		uint16_t t16;
-		uint32_t t32;
-		uint64_t t64;
-	};
-
-	static_assert(sizeof v == 2 || sizeof v == 4 || sizeof v == 8,
-		      "Are you sure you want to byteswap that?");
-
-	switch (sizeof v) {
-	case 2:
-		tb = as_writable_bytes(std::span(&t16, 1));
-		std::copy(begin(vb), end(vb), begin(tb));
-		t16 = __builtin_bswap16(t16);
-		break;
-	case 4:
-		tb = as_writable_bytes(std::span(&t32, 1));
-		std::copy(begin(vb), end(vb), begin(tb));
-		t32 = __builtin_bswap32(t32);
-		break;
-	case 8:
-		tb = as_writable_bytes(std::span(&t64, 1));
-		std::copy(begin(vb), end(vb), begin(tb));
-		t64 = __builtin_bswap64(t64);
-		break;
-	}
-
-	std::copy(begin(tb), end(tb), begin(vb));
-	return v;
-}
-
-/*
- * write_be - write a big endian value to byte iterator 'p'
- */
-inline
-void
-write_be(auto p, auto v)
-{
-	auto vb = as_writable_bytes(std::span(&v, 1));
-	if (std::endian::native != std::endian::big) {
-		/* equivalent to std::reverse(begin(vb), end(vb)) but
-		 * optimises properly */
-		v = byteswap(v);
-	}
-	std::copy(begin(vb), end(vb), p);
-}
-
-/*
- * read_be - read a big endian value from byte iterator 'p'
- */
-template<class T>
-T
-read_be(auto p)
-{
-	T v;
-	auto vb = as_writable_bytes(std::span(&v, 1));
-	std::copy(p, p + sizeof v, begin(vb));
-	if (std::endian::native != std::endian::big) {
-		/* equivalent to std::reverse(begin(vb), end(vb)) but
-		 * optimises properly */
-		v = byteswap(v);
-	}
-	return v;
 }
 
 /*
