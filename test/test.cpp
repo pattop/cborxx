@@ -74,7 +74,6 @@ TEST(codec, bool_true)
 	EXPECT_EQ(c[0].type(), cbor::type::boolean);
 	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
 	EXPECT_THROW(c[0].get<float>(), std::runtime_error);
-
 }
 
 TEST(codec, bool_false)
