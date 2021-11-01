@@ -370,3 +370,17 @@ TEST(codec, int_qword)
 		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
 	}
 }
+
+TEST(codec, int_qword_overflow)
+{
+	/* CBOR can encode 64-bit -ve numbers which don't fit in int64_t */
+	std::array buf {
+		0x3b_b, 0x80_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b,	    // negative(9223372036854775808)
+		0x3b_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b	    // negative(18446744073709551615)
+	};
+	cbor::codec c(buf);
+
+	/* overflow checks */
+	EXPECT_THROW(c[0].get<int64_t>(), std::range_error);
+	EXPECT_THROW(c[1].get<int64_t>(), std::range_error);
+}
