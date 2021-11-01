@@ -53,6 +53,8 @@ TEST(codec, null)
 	EXPECT_THROW(c[0].get<bool>(), std::runtime_error);
 	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
 	EXPECT_THROW(c[0].get<float>(), std::runtime_error);
+	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, bool_true)
@@ -76,6 +78,8 @@ TEST(codec, bool_true)
 	EXPECT_EQ(c[0].type(), cbor::type::boolean);
 	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
 	EXPECT_THROW(c[0].get<float>(), std::runtime_error);
+	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, bool_false)
@@ -99,6 +103,8 @@ TEST(codec, bool_false)
 	EXPECT_EQ(c[0].type(), cbor::type::boolean);
 	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
 	EXPECT_THROW(c[0].get<float>(), std::runtime_error);
+	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, fp_nan)
@@ -122,11 +128,11 @@ TEST(codec, fp_nan)
 	EXPECT_TRUE(std::isnan(c[1].get<double>()));
 
 	/* type checks */
-	for (size_t i = 0; i < size(c); ++i) {
-		EXPECT_EQ(c[i].type(), cbor::type::fp32);
-		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<int>(), std::runtime_error);
-	}
+	EXPECT_EQ(c[0].type(), cbor::type::fp32);
+	EXPECT_THROW(c[0].get<bool>(), std::runtime_error);
+	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, fp_positive_infinity)
@@ -152,11 +158,11 @@ TEST(codec, fp_positive_infinity)
 	EXPECT_TRUE(std::isinf(c[0].get<double>()));
 
 	/* type checks */
-	for (size_t i = 0; i < size(c); ++i) {
-		EXPECT_EQ(c[i].type(), cbor::type::fp32);
-		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<int>(), std::runtime_error);
-	}
+	EXPECT_EQ(c[0].type(), cbor::type::fp32);
+	EXPECT_THROW(c[0].get<bool>(), std::runtime_error);
+	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, fp_negative_infinity)
@@ -182,11 +188,11 @@ TEST(codec, fp_negative_infinity)
 	EXPECT_TRUE(std::isinf(c[0].get<double>()));
 
 	/* type checks */
-	for (size_t i = 0; i < size(c); ++i) {
-		EXPECT_EQ(c[i].type(), cbor::type::fp32);
-		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
-		EXPECT_THROW(c[i].get<int>(), std::runtime_error);
-	}
+	EXPECT_EQ(c[0].type(), cbor::type::fp32);
+	EXPECT_THROW(c[0].get<bool>(), std::runtime_error);
+	EXPECT_THROW(c[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(c[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(c[0].get_bytes(), std::runtime_error);
 }
 
 TEST(codec, int_inline)
@@ -220,6 +226,8 @@ TEST(codec, int_inline)
 		EXPECT_EQ(c[i].type(), cbor::type::int32);
 		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
 		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(c[i].get<cbor::tag>(), std::runtime_error);
+		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
 	}
 }
 
@@ -257,6 +265,8 @@ TEST(codec, int_byte)
 		EXPECT_EQ(c[i].type(), cbor::type::int32);
 		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
 		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(c[i].get<cbor::tag>(), std::runtime_error);
+		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
 	}
 }
 
@@ -294,6 +304,8 @@ TEST(codec, int_word)
 		EXPECT_EQ(c[i].type(), cbor::type::int32);
 		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
 		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(c[i].get<cbor::tag>(), std::runtime_error);
+		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
 	}
 }
 
@@ -339,6 +351,8 @@ TEST(codec, int_dword)
 	for (size_t i = 0; i < size(c); ++i) {
 		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
 		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(c[i].get<cbor::tag>(), std::runtime_error);
+		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
 	}
 }
 
@@ -379,6 +393,8 @@ TEST(codec, int_qword)
 	for (size_t i = 0; i < size(c); ++i) {
 		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
 		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(c[i].get<cbor::tag>(), std::runtime_error);
+		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
 	}
 }
 
