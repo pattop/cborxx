@@ -377,9 +377,11 @@ public:
 	T
 	get() const
 	{
+		auto d = p_.data();
+
 		/* booleans */
 		if (std::is_same_v<T, bool>) {
-			switch (*p_) {
+			switch (*d) {
 			case ih::bool_false:
 				return false;
 			case ih::bool_true:
@@ -391,18 +393,18 @@ public:
 
 		/* integers */
 		T v;
-		switch (ih::get_major(p_)) {
+		switch (ih::get_major(d)) {
 		case ih::major::posint:
-			v = ih::get_arg(p_);
-			if (static_cast<uint64_t>(v) != ih::get_arg(p_))
+			v = ih::get_arg(d);
+			if (static_cast<uint64_t>(v) != ih::get_arg(d))
 				throw std::range_error("integer overflow");
 			return v;
 		case ih::major::negint:
-			if (ih::get_arg(p_) > std::numeric_limits<int64_t>::max())
+			if (ih::get_arg(d) > std::numeric_limits<int64_t>::max())
 				throw std::range_error("integer overflow");
-			v = -1 - static_cast<int64_t>(ih::get_arg(p_));
+			v = -1 - static_cast<int64_t>(ih::get_arg(d));
 			if (static_cast<int64_t>(v) !=
-			    -1 - static_cast<int64_t>(ih::get_arg(p_)))
+			    -1 - static_cast<int64_t>(ih::get_arg(d)))
 				throw std::range_error("integer overflow");
 			return v;
 		default:
@@ -416,22 +418,23 @@ public:
 	get() const
 	{
 		T v;
-		switch (*p_) {
+		auto d = p_.data();
+		switch (*d) {
 		case ih::fp16:
-			if (p_[2] != 0x00_b)
+			if (d[2] != 0x00_b)
 				throw std::runtime_error("float16 not supported");
-			if (p_[1] == 0x7e_b)
+			if (d[1] == 0x7e_b)
 				return std::numeric_limits<T>::quiet_NaN();
-			if (p_[1] == 0x7c_b)
+			if (d[1] == 0x7c_b)
 				return std::numeric_limits<T>::infinity();
-			if (p_[1] == 0xfc_b)
+			if (d[1] == 0xfc_b)
 				return -std::numeric_limits<T>::infinity();
 			throw std::runtime_error("float16 not supported");
 		case ih::fp32:
-			return read_be<float>(p_);
+			return read_be<float>(d);
 		case ih::fp64:
-			v = read_be<double>(p_);
-			if (v != read_be<double>(p_))
+			v = read_be<double>(d);
+			if (v != read_be<double>(d))
 				throw std::range_error("lossy float conversion");
 			return v;
 		default:
@@ -444,27 +447,30 @@ public:
 	cbor::tag
 	get() const
 	{
-		if (ih::get_major(p_) != ih::major::tag)
+		auto d = p_.data();
+		if (ih::get_major(d) != ih::major::tag)
 			throw std::runtime_error("data is not a tag");
-		return static_cast<cbor::tag>(ih::get_arg(p_));
+		return static_cast<cbor::tag>(ih::get_arg(d));
 	}
 
-	std::span<const typename std::iterator_traits<I>::value_type>
+	std::span<const std::byte>
 	get_bytes() const
 	{
-		if (ih::get_major(p_) != ih::major::bytes)
+		auto d = p_.data();
+		if (ih::get_major(d) != ih::major::bytes)
 			throw std::runtime_error("data is not bytes");
-		auto ih_sz = ih::get_ih_size(p_);
-		return {p_ + ih_sz, p_ + ih_sz + ih::get_data_size(p_)};
+		auto ih_sz = ih::get_ih_size(d);
+		return {d + ih_sz, d + ih_sz + ih::get_data_size(d)};
 	}
 
 	cbor::type
 	type() const
 	{
-		switch (ih::get_major(p_)) {
+		auto d = p_.data();
+		switch (ih::get_major(d)) {
 		case ih::major::posint: {
-			auto sz = ih::get_arg_size(p_);
-			auto val = ih::get_arg(p_);
+			auto sz = ih::get_arg_size(d);
+			auto val = ih::get_arg(d);
 			if (sz < 4)
 				return cbor::type::int32;
 			if (sz == 4)
@@ -474,8 +480,8 @@ public:
 			    ? cbor::type::uint64 : cbor::type::int64;
 		}
 		case ih::major::negint: {
-			auto sz = ih::get_arg_size(p_);
-			auto val = ih::get_arg(p_);
+			auto sz = ih::get_arg_size(d);
+			auto val = ih::get_arg(d);
 			if (sz < 4)
 				return cbor::type::int32;
 			return val > std::numeric_limits<int32_t>::max() ?
@@ -492,7 +498,7 @@ public:
 		case ih::major::tag:
 			return cbor::type::tag;
 		case ih::major::special:
-			switch (static_cast<ih::special>(ih::get_ai(p_))) {
+			switch (static_cast<ih::special>(ih::get_ai(d))) {
 			case ih::special::bool_false:
 			case ih::special::bool_true:
 				return cbor::type::boolean;
@@ -533,8 +539,12 @@ template<class S>
 requires std::is_same_v<typename S::value_type, std::byte>
 class codec {
 public:
-	using reference = data_item<typename S::iterator>;
-	using const_reference = const data_item<typename S::const_iterator>;
+	template<bool> class itr__;
+	using iterator = itr__<false>;
+	using const_iterator = itr__<true>;
+
+	using reference = data_item<iterator>;
+	using const_reference = const data_item<const_iterator>;
 	using difference_type = std::ptrdiff_t;
 	using size_type = std::size_t;
 
@@ -660,23 +670,25 @@ public:
 		reference
 		operator*() const
 		{
-			return c_->ref(it_);
+			return *this;
 		}
 
 		reference
 		operator[](size_type d) const
 		{
-			return c_->ref(it_ + d);
+			return *this + d;
+		}
+
+		auto
+		data() const
+		{
+			return c_->data(it_);
 		}
 
 	private:
 		size_type it_;
 		container *c_;
 	};
-	typedef itr__<false> iterator;
-	typedef itr__<true> const_iterator;
-	typedef std::reverse_iterator<iterator> reverse_iterator;
-	typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
 	/*
 	 * Constructor for CBOR codec using storage container S.
@@ -723,15 +735,15 @@ public:
 	reference
 	operator[](size_type i)
 	{
-#warning fixme: stupid version just to get tests running
-		auto p = begin(s_);
-		auto len = ih::get_size(p);
-		for (size_type n = 0; n < i; ++n)
-			len = ih::get_size(p += len);
-		return {p};
+		return iterator(i, this);
 	}
 
-	/* const_reference operator[](size_type i) const */
+	const_reference
+	operator[](size_type i) const
+	{
+		return const_iterator(i, this);
+	}
+
 	/* reference at(size_type); */
 	/* const_reference at(size_type) const; */
 	/* template<class ...A> iterator emplace(const_iterator pos, A &&...a) */
@@ -774,6 +786,18 @@ public:
 	}
 
 private:
+	/* get raw cbor storage for item i */
+	auto
+	data(size_type i) const
+	{
+#warning fixme: stupid version just to get tests running
+		auto p = begin(s_);
+		auto len = ih::get_size(p);
+		for (size_type n = 0; n < i; ++n)
+			len = ih::get_size(p += len);
+		return p;
+	}
+
 	template<class U>
 	requires std::is_unsigned_v<U>
 	typename S::iterator
