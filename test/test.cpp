@@ -446,3 +446,56 @@ TEST(codec, bignum)
 	EXPECT_EQ(c[0].type(), cbor::type::tag);
 	EXPECT_EQ(c[1].type(), cbor::type::bytes);
 }
+
+TEST(codec, tags)
+{
+	std::vector<std::byte> buf;
+	cbor::codec c(buf);
+
+	std::array tags = {
+		static_cast<cbor::tag>(0),
+		static_cast<cbor::tag>(23),
+		static_cast<cbor::tag>(24),
+		static_cast<cbor::tag>(255),
+		static_cast<cbor::tag>(65536),
+		static_cast<cbor::tag>(4294967296),
+	};
+	std::array invalid_tags =  {
+		cbor::tag::invalid_1,
+		cbor::tag::invalid_2,
+		cbor::tag::invalid_3,
+	};
+
+	/* encode */
+	for (auto &t : tags)
+		c.push_back(t);
+	for (auto &t : invalid_tags)
+		EXPECT_THROW(c.push_back(t), std::invalid_argument);
+	c.push_back(0);
+
+	/* verify */
+	std::array exp{
+		0xc0_b,                                     // tag(0)
+		0xd7_b,					    // tag(23)
+		0xd8_b, 0x18_b,                             // tag(24)
+		0xd8_b, 0xff_b,				    // tag(255)
+		0xda_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b,	    // tag(65536)
+		0xdb_b, 0x00_b, 0x00_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b,	// tag(4294967296)
+		0x00_b
+	};
+	ASSERT_EQ(buf, exp);
+
+	/* decode */
+	for (auto i = 0u; i < size(tags); ++i)
+		EXPECT_EQ(c[i].get<cbor::tag>(), tags[i]);
+	EXPECT_EQ(c[size(tags)].get<int>(), 0);
+
+	/* type checks */
+	for (auto i = 0u; i < size(tags); ++i) {
+		EXPECT_EQ(c[i].type(), cbor::type::tag);
+		EXPECT_THROW(c[i].get<bool>(), std::runtime_error);
+		EXPECT_THROW(c[i].get<int>(), std::runtime_error);
+		EXPECT_THROW(c[i].get<float>(), std::runtime_error);
+		EXPECT_THROW(c[i].get_bytes(), std::runtime_error);
+	}
+}
