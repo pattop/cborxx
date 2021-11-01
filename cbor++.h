@@ -50,7 +50,6 @@ enum class type {
 	tag,
 	uint32,
 	uint64,
-	bignum,
 	fp32,
 	fp64,
 	boolean,
