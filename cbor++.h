@@ -757,7 +757,7 @@ private:
 	template<class T>
 	requires std::is_floating_point_v<T>
 	void
-	encode(S::iterator p, T v)
+	encode(typename S::iterator p, T v)
 	{
 		/* nan is encoded as 2-byte float */
 		if (std::isnan(v)) {
@@ -788,7 +788,7 @@ private:
 	template<class T>
 	requires std::is_integral_v<T>
 	void
-	encode(S::iterator p, T v)
+	encode(typename S::iterator p, T v)
 	{
 		auto mt = v < 0 ? ih::major::negint : ih::major::posint;
 		std::make_unsigned_t<T> u = v < 0 ? -v - 1 : v;
@@ -815,13 +815,13 @@ private:
 	}
 
 	void
-	encode(S::iterator p, nullptr_t)
+	encode(typename S::iterator p, std::nullptr_t)
 	{
 		s_.insert(p, ih::null);
 	}
 
 	void
-	encode(S::iterator p, bool v)
+	encode(typename S::iterator p, bool v)
 	{
 		s_.insert(p, v ? ih::bool_true : ih::bool_false);
 	}
