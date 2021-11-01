@@ -1,6 +1,6 @@
 #include "../cbor++.h"
 
-#include <gtest/gtest.h>
+#include <vector>
 
 using namespace cbor::literals;
 
@@ -31,6 +31,8 @@ operator==(const L &l, const R &r)
 }
 
 }
+
+#include <gtest/gtest.h>
 
 TEST(codec, null)
 {
