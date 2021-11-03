@@ -543,6 +543,18 @@ public:
 		}
 	}
 
+	const data_item<I> *
+	operator->() const
+	{
+		return this;
+	}
+
+	data_item<I> *
+	operator->()
+	{
+		return this;
+	}
+
 private:
 	I p_;
 };
@@ -694,6 +706,12 @@ public:
 		}
 
 		reference
+		operator->() const
+		{
+			return *this;
+		}
+
+		reference
 		operator[](size_type d) const
 		{
 			return *this + d;
@@ -720,12 +738,43 @@ public:
 	/* codec &operator=(const codec&); */
 	/* bool operator==(const codec&) const; */
 	/* bool operator!=(const codec&) const; */
-	/* iterator begin() */
-	/* const_iterator begin() const */
-	/* const_iterator cbegin() const */
-	/* iterator end() */
-	/* const_iterator end() const */
-	/* const_iterator cend() const */
+
+	iterator
+	begin()
+	{
+		return {0, this};
+	}
+
+	const_iterator
+	begin() const
+	{
+		return {0, this};
+	}
+
+	const_iterator
+	cbegin() const
+	{
+		return {0, this};
+	}
+
+	iterator
+	end()
+	{
+		return {size(), this};
+	}
+
+	const_iterator
+	end() const
+	{
+		return {size(), this};
+	}
+
+	const_iterator
+	cend() const
+	{
+		return {size(), this};
+	}
+
 	/* reverse_iterator rbegin() */
 	/* const_reverse_iterator rbegin() const */
 	/* const_reverse_iterator crbegin() const */
@@ -744,7 +793,7 @@ public:
 	void
 	push_back(const auto &v)
 	{
-		encode(end(s_), v);
+		encode(std::end(s_), v);
 	}
 
 	/* void push_back(const T &v) */
@@ -793,7 +842,7 @@ public:
 		size_type n = 0;
 		if (s_.empty())
 			return 0;
-		for (auto p = begin(s_); p != end(s_); p += ih::get_size(p))
+		for (auto p = std::begin(s_); p != std::end(s_); p += ih::get_size(p))
 			++n;
 		return n;
 	}
@@ -811,7 +860,7 @@ private:
 	data(size_type i) const
 	{
 #warning fixme: stupid version just to get tests running
-		auto p = begin(s_);
+		auto p = std::begin(s_);
 		auto len = ih::get_size(p);
 		for (size_type n = 0; n < i; ++n)
 			len = ih::get_size(p += len);
@@ -829,19 +878,19 @@ private:
 			std::array<std::byte, 2> b{
 				ih::make(m, ih::ai::byte),
 				static_cast<std::byte>(arg)};
-			return s_.insert(p, begin(b), end(b)) + std::size(b);
+			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
 		} else if (arg <= std::numeric_limits<uint16_t>::max()) {
 			std::array<std::byte, 3> b{ih::make(m, ih::ai::word)};
 			write_be(&b[1], static_cast<uint16_t>(arg));
-			return s_.insert(p, begin(b), end(b)) + std::size(b);
+			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
 		} else if (arg <= std::numeric_limits<uint32_t>::max()) {
 			std::array<std::byte, 5> b{ih::make(m, ih::ai::dword)};
 			write_be(&b[1], static_cast<uint32_t>(arg));
-			return s_.insert(p, begin(b), end(b)) + std::size(b);
+			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
 		} else {
 			std::array<std::byte, 9> b{ih::make(m, ih::ai::qword)};
 			write_be(&b[1], arg);
-			return s_.insert(p, begin(b), end(b)) + std::size(b);
+			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
 		}
 	}
 
@@ -853,14 +902,14 @@ private:
 		/* nan is encoded as 2-byte float */
 		if (std::isnan(v)) {
 			auto b = {ih::fp16, 0x7e_b, 0x00_b};
-			s_.insert(p, begin(b), end(b));
+			s_.insert(p, std::begin(b), std::end(b));
 			return;
 		}
 
 		/* infinity is encoded as 2-byte float */
 		if (std::isinf(v)) {
 			auto b = {ih::fp16, v > 0 ? 0x7c_b : 0xfc_b, 0x00_b};
-			s_.insert(p, begin(b), end(b));
+			s_.insert(p, std::begin(b), std::end(b));
 			return;
 		}
 
@@ -873,7 +922,7 @@ private:
 		std::array<std::byte, sizeof v + 1> b{
 				  sizeof v == 4 ? ih::fp32 : ih::fp32};
 		write_be(&b[1], &v);
-		s_.insert(p, begin(b), end(b));
+		s_.insert(p, std::begin(b), std::end(b));
 	}
 
 	template<class T>
@@ -911,7 +960,7 @@ private:
 	encode(typename S::iterator p, std::span<const typename S::value_type> v)
 	{
 		s_.insert(encode_ih(p, ih::major::bytes, std::size(v)),
-			  begin(v), end(v));
+			  std::begin(v), std::end(v));
 	}
 
 	void

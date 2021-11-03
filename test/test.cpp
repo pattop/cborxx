@@ -577,3 +577,30 @@ TEST(codec, string)
 	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
 	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
 }
+
+TEST(codec, iterator)
+{
+	/* some basic iterator tests */
+	const std::array cbor{
+		0x00_b,			    // unsigned(0)
+		0xf6_b,			    // null
+		0xf9_b, 0x7e_b, 0x00_b,	    // NaN
+		0x63_b,			    // text(3)
+		    0x66_b, 0x6f_b, 0x6f_b, // "foo"
+		0xfb_b, 0x40_b, 0x09_b, 0x21_b, 0xf9_b, 0xf0_b, 0x1b_b, 0x86_b, 0x6e_b // 3.14159
+	};
+	const cbor::codec d(cbor);
+
+	auto i = begin(d);
+	EXPECT_EQ(i++->get<int>(), 0);
+	EXPECT_TRUE(std::isnan((++i)->get<float>()));
+	EXPECT_EQ(i[2]->get<double>(), 3.14159);
+	EXPECT_EQ((i + 2)->get<double>(), 3.14159);
+	EXPECT_EQ(i[-2]->get<int>(), 0);
+	EXPECT_EQ((i - 2)->get<int>(), 0);
+	EXPECT_TRUE(std::isnan(i--->get<float>()));
+	EXPECT_EQ((--i)->get<int>(), 0);
+	EXPECT_EQ((*(i += 3)).get_string(), "foo");
+	EXPECT_EQ((*(i -= 3)).get<int>(), 0);
+	EXPECT_EQ(i + 5, end(d));
+}
