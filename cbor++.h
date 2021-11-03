@@ -221,8 +221,8 @@ constexpr
 std::byte
 make(major m, auto a)
 {
-	/* when this function is always evaluated in a constexpr context
-	 * this won't throw -  it will fail to compile */
+	/* when this function is evaluated in a constexpr context this won't
+	 * throw - it will fail to compile */
 	if (static_cast<int>(m) > 7)
 		throw std::invalid_argument("invalid major");
 	if (static_cast<int>(a) > 31)
