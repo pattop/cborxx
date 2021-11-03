@@ -328,7 +328,7 @@ get_arg(auto p)
 	case 28 ... 30:
 		throw std::runtime_error("invalid short count");
 	case static_cast<unsigned>(ai::indefinite):
-		return 31;
+		throw std::runtime_error("indefinite argument");
 	default:
 		unreachable();
 	}
