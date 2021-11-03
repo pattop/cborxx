@@ -16,6 +16,12 @@
 #include <iterator>
 #include <span>
 
+#if defined(CBORXX_DEBUG)
+#define CBORXX_ASSERT(x) assert(x)
+#else
+#define CBORXX_ASSERT(x)
+#endif
+
 namespace cbor {
 
 /*
