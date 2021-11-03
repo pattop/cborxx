@@ -257,12 +257,12 @@ get_major(auto p)
  * get_ai - get additional information from CBOR item head at 'p'
  */
 inline
-unsigned
+ai
 get_ai(auto p)
 {
 	static_assert(sizeof *p == 1);
 
-	return static_cast<unsigned>(*p) & 0x1f;
+	return static_cast<ai>(static_cast<unsigned>(*p) & 0x1f);
 }
 
 /*
@@ -274,20 +274,20 @@ get_arg_size(auto p)
 {
 	static_assert(sizeof *p == 1);
 
-	switch (get_ai(p)) {
+	switch (static_cast<unsigned>(get_ai(p))) {
 	case 0 ... 23:
 		return 0;
-	case static_cast<int>(ai::byte):
+	case static_cast<unsigned>(ai::byte):
 		return 1;
-	case 25:
+	case static_cast<unsigned>(ai::word):
 		return 2;
-	case 26:
+	case static_cast<unsigned>(ai::dword):
 		return 4;
-	case 27:
+	case static_cast<unsigned>(ai::qword):
 		return 8;
 	case 28 ... 30:
 		throw std::runtime_error("invalid additional information");
-	case 31:
+	case static_cast<unsigned>(ai::indefinite):
 		return 0;
 	default:
 		unreachable();
@@ -313,21 +313,21 @@ inline
 uint64_t
 get_arg(auto p)
 {
-	auto ai = get_ai(p);
+	auto ai = static_cast<unsigned>(get_ai(p));
 	switch (ai) {
 	case 0 ... 23:
 		return ai;
-	case 24:
+	case static_cast<unsigned>(ai::byte):
 		return static_cast<uint8_t>(p[1]);
-	case 25:
+	case static_cast<unsigned>(ai::word):
 		return read_be<uint16_t>(p + 1);
-	case 26:
+	case static_cast<unsigned>(ai::dword):
 		return read_be<uint32_t>(p + 1);
-	case 27:
+	case static_cast<unsigned>(ai::qword):
 		return read_be<uint64_t>(p + 1);
 	case 28 ... 30:
 		throw std::runtime_error("invalid short count");
-	case 31:
+	case static_cast<unsigned>(ai::indefinite):
 		return 31;
 	default:
 		unreachable();
