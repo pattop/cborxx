@@ -849,7 +849,8 @@ public:
 
 	/* size_type max_size() const */
 
-	bool empty() const
+	bool
+	empty() const
 	{
 		return s_.empty();
 	}
