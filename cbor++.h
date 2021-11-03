@@ -471,6 +471,19 @@ public:
 		return {d + ih_sz, d + ih_sz + ih::get_data_size(d)};
 	}
 
+#warning constrain this to work only when p.data() evaluates to a contiguous iterator
+	std::string_view
+	get_string() const
+	{
+		/* throws for indefinite size */
+		auto d = p_.data();
+		if (ih::get_major(d) != ih::major::utf8)
+			throw std::runtime_error("data is not a string");
+		auto ih_sz = ih::get_ih_size(d);
+		return {reinterpret_cast<const char *>(d + ih_sz),
+			static_cast<std::string_view::size_type>(ih::get_data_size(d))};
+	}
+
 	cbor::type
 	type() const
 	{
@@ -900,6 +913,21 @@ private:
 	{
 		s_.insert(encode_ih(p, ih::major::bytes, std::size(v)),
 			  begin(v), end(v));
+	}
+
+	void
+	encode(typename S::iterator p, const char *v)
+	{
+		encode(p, std::string_view(v));
+	}
+
+	void
+	encode(typename S::iterator p, std::string_view v)
+	{
+		auto vb = as_bytes(std::span(std::data(v), std::size(v)));
+		s_.insert(encode_ih(p, ih::major::utf8, std::size(vb)),
+			  std::begin(vb), std::end(vb));
+
 	}
 
 	S &s_;

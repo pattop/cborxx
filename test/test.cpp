@@ -58,6 +58,7 @@ TEST(codec, null)
 	EXPECT_THROW(d[0].get<float>(), std::runtime_error);
 	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
 	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
+	EXPECT_THROW(d[0].get_string(), std::runtime_error);
 }
 
 TEST(codec, bool_true)
@@ -84,6 +85,7 @@ TEST(codec, bool_true)
 	EXPECT_THROW(d[0].get<float>(), std::runtime_error);
 	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
 	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
+	EXPECT_THROW(d[0].get_string(), std::runtime_error);
 }
 
 TEST(codec, bool_false)
@@ -110,6 +112,7 @@ TEST(codec, bool_false)
 	EXPECT_THROW(d[0].get<float>(), std::runtime_error);
 	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
 	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
+	EXPECT_THROW(d[0].get_string(), std::runtime_error);
 }
 
 TEST(codec, fp_nan)
@@ -139,6 +142,7 @@ TEST(codec, fp_nan)
 	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
 	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
 	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
+	EXPECT_THROW(d[0].get_string(), std::runtime_error);
 }
 
 TEST(codec, fp_positive_infinity)
@@ -170,6 +174,7 @@ TEST(codec, fp_positive_infinity)
 	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
 	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
 	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
+	EXPECT_THROW(d[0].get_string(), std::runtime_error);
 }
 
 TEST(codec, fp_negative_infinity)
@@ -201,6 +206,7 @@ TEST(codec, fp_negative_infinity)
 	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
 	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
 	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
+	EXPECT_THROW(d[0].get_string(), std::runtime_error);
 }
 
 TEST(codec, int_inline)
@@ -237,6 +243,7 @@ TEST(codec, int_inline)
 		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
 		EXPECT_THROW(d[i].get<cbor::tag>(), std::runtime_error);
 		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
+		EXPECT_THROW(d[i].get_string(), std::runtime_error);
 	}
 }
 
@@ -277,6 +284,7 @@ TEST(codec, int_byte)
 		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
 		EXPECT_THROW(d[i].get<cbor::tag>(), std::runtime_error);
 		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
+		EXPECT_THROW(d[i].get_string(), std::runtime_error);
 	}
 }
 
@@ -317,6 +325,7 @@ TEST(codec, int_word)
 		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
 		EXPECT_THROW(d[i].get<cbor::tag>(), std::runtime_error);
 		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
+		EXPECT_THROW(d[i].get_string(), std::runtime_error);
 	}
 }
 
@@ -365,6 +374,7 @@ TEST(codec, int_dword)
 		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
 		EXPECT_THROW(d[i].get<cbor::tag>(), std::runtime_error);
 		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
+		EXPECT_THROW(d[i].get_string(), std::runtime_error);
 	}
 }
 
@@ -408,6 +418,7 @@ TEST(codec, int_qword)
 		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
 		EXPECT_THROW(d[i].get<cbor::tag>(), std::runtime_error);
 		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
+		EXPECT_THROW(d[i].get_string(), std::runtime_error);
 	}
 }
 
@@ -512,6 +523,7 @@ TEST(codec, tags)
 		EXPECT_THROW(d[i].get<int>(), std::runtime_error);
 		EXPECT_THROW(d[i].get<float>(), std::runtime_error);
 		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
+		EXPECT_THROW(d[i].get_string(), std::runtime_error);
 	}
 }
 
@@ -537,4 +549,31 @@ TEST(codec, bytes)
 	/* decode */
 	const cbor::codec d(exp);
 	EXPECT_EQ(d[0].get_bytes(), v);
+}
+
+TEST(codec, string)
+{
+	std::vector<std::byte> buf;
+
+	const char *v = "foo";
+
+	/* encode */
+	cbor::codec e(buf);
+	e.push_back(v);
+
+	/* verify */
+	const std::array exp{
+		0x63_b,			// text(3)
+		0x66_b, 0x6f_b, 0x6f_b,	// "foo"
+	};
+	EXPECT_EQ(buf, exp);
+
+	/* decode */
+	const cbor::codec d(exp);
+	EXPECT_EQ(d[0].get_string(), v);
+	EXPECT_THROW(d[0].get<bool>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<float>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
 }
