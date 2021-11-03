@@ -437,10 +437,9 @@ public:
 				return -std::numeric_limits<T>::infinity();
 			throw std::runtime_error("float16 not supported");
 		case ih::fp32:
-			return read_be<float>(d);
+			return read_be<float>(d + 1);
 		case ih::fp64:
-			v = read_be<double>(d);
-			if (v != read_be<double>(d))
+			if (auto vd = read_be<double>(d + 1); v = vd, v != vd)
 				throw std::range_error("lossy float conversion");
 			return v;
 		default:
