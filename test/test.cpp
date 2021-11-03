@@ -1,3 +1,4 @@
+#define CBORXX_DEBUG
 #include "../cbor++.h"
 
 #include <vector>
