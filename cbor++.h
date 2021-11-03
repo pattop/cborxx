@@ -326,7 +326,7 @@ get_arg(auto p)
 	case static_cast<unsigned>(ai::qword):
 		return read_be<uint64_t>(p + 1);
 	case 28 ... 30:
-		throw std::runtime_error("invalid short count");
+		throw std::runtime_error("invalid additional information");
 	case static_cast<unsigned>(ai::indefinite):
 		throw std::runtime_error("indefinite argument");
 	default:
@@ -456,6 +456,7 @@ public:
 	std::span<const std::byte>
 	get_bytes() const
 	{
+		/* throws for indefinite size */
 		auto d = p_.data();
 		if (ih::get_major(d) != ih::major::bytes)
 			throw std::runtime_error("data is not bytes");
