@@ -564,8 +564,8 @@ TEST(codec, string)
 
 	/* verify */
 	const std::array exp{
-		0x63_b,			// text(3)
-		0x66_b, 0x6f_b, 0x6f_b,	// "foo"
+		0x63_b,				// text(3)
+		    0x66_b, 0x6f_b, 0x6f_b,	// "foo"
 	};
 	EXPECT_EQ(buf, exp);
 
