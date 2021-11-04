@@ -62,6 +62,33 @@ TEST(codec, null)
 	EXPECT_THROW(d[0].get_string(), std::runtime_error);
 }
 
+TEST(codec, undefined)
+{
+	std::vector<std::byte> buf;
+
+	/* encode */
+	cbor::codec e(buf);
+	e.push_back(cbor::undefined());
+
+	/* verify */
+	const std::array exp{
+		0xf7_b		// undefined
+	};
+	EXPECT_EQ(buf, exp);
+
+	/* decode */
+	const cbor::codec d(exp);
+
+	/* type checks */
+	EXPECT_EQ(d[0].type(), cbor::type::undefined);
+	EXPECT_THROW(d[0].get<bool>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<int>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<float>(), std::runtime_error);
+	EXPECT_THROW(d[0].get<cbor::tag>(), std::runtime_error);
+	EXPECT_THROW(d[0].get_bytes(), std::runtime_error);
+	EXPECT_THROW(d[0].get_string(), std::runtime_error);
+}
+
 TEST(codec, bool_true)
 {
 	std::vector<std::byte> buf;

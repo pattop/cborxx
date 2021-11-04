@@ -65,6 +65,11 @@ enum class type {
 };
 
 /*
+ * undefined - unique type for representing CBOR undefined items
+ */
+struct undefined {};
+
+/*
  * tag - some CBOR tag values
  *
  * See https://www.iana.org/assignments/cbor-tags.
@@ -244,6 +249,7 @@ constexpr auto fp16 = make(major::special, special::fp16);
 constexpr auto fp32 = make(major::special, special::fp32);
 constexpr auto fp64 = make(major::special, special::fp64);
 constexpr auto null = make(major::special, special::null);
+constexpr auto undefined = make(major::special, special::undefined);
 constexpr auto bool_false = make(major::special, special::bool_false);
 constexpr auto bool_true = make(major::special, special::bool_true);
 
@@ -940,6 +946,12 @@ private:
 	encode(typename S::iterator p, std::nullptr_t)
 	{
 		return s_.insert(p, ih::null) + 1;
+	}
+
+	typename S::iterator
+	encode(typename S::iterator p, undefined)
+	{
+		return s_.insert(p, ih::undefined) + 1;
 	}
 
 	typename S::iterator
