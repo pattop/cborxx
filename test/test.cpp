@@ -605,3 +605,55 @@ TEST(codec, iterator)
 	EXPECT_EQ((*(i -= 3)).get<int>(), 0);
 	EXPECT_EQ(i + 5, end(d));
 }
+
+TEST(codec, encode_array)
+{
+	std::vector<std::byte> buf;
+
+	/* encode */
+	cbor::codec e(buf);
+	e.push_back_array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+			  16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+			  29, 30, 31, "foo", nullptr);
+
+	/* verify */
+	std::array exp{
+		0x98_b, 0x22_b,		    // array(34)
+		    0x00_b,			// unsigned(0)
+		    0x01_b,			// unsigned(1)
+		    0x02_b,			// unsigned(2)
+		    0x03_b,			// unsigned(3)
+		    0x04_b,			// unsigned(4)
+		    0x05_b,			// unsigned(5)
+		    0x06_b,			// unsigned(6)
+		    0x07_b,			// unsigned(7)
+		    0x08_b,			// unsigned(8)
+		    0x09_b,			// unsigned(9)
+		    0x0a_b,			// unsigned(10)
+		    0x0b_b,			// unsigned(11)
+		    0x0c_b,			// unsigned(12)
+		    0x0d_b,			// unsigned(13)
+		    0x0e_b,			// unsigned(14)
+		    0x0f_b,			// unsigned(15)
+		    0x10_b,			// unsigned(16)
+		    0x11_b,			// unsigned(17)
+		    0x12_b,			// unsigned(18)
+		    0x13_b,			// unsigned(19)
+		    0x14_b,			// unsigned(20)
+		    0x15_b,			// unsigned(21)
+		    0x16_b,			// unsigned(22)
+		    0x17_b,			// unsigned(23)
+		    0x18_b, 0x18_b,		// unsigned(24)
+		    0x18_b, 0x19_b,		// unsigned(25)
+		    0x18_b, 0x1a_b,		// unsigned(26)
+		    0x18_b, 0x1b_b,		// unsigned(27)
+		    0x18_b, 0x1c_b,		// unsigned(28)
+		    0x18_b, 0x1d_b,		// unsigned(29)
+		    0x18_b, 0x1e_b,		// unsigned(30)
+		    0x18_b, 0x1f_b,		// unsigned(31)
+		    0x63_b,			// text(3)
+			0x66_b, 0x6f_b, 0x6f_b,	    // "foo"
+		    0xf6_b			// null
+	};
+	EXPECT_EQ(buf, exp);
+}

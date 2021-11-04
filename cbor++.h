@@ -796,8 +796,12 @@ public:
 		encode(std::end(s_), v);
 	}
 
-	/* void push_back(const T &v) */
-	/* void push_back(T &&v) */
+	void
+	push_back_array(const auto &...a)
+	{
+		encode_array(std::end(s_), a...);
+	}
+
 	/* void pop_front() */
 	/* void pop_back() */
 
@@ -897,86 +901,91 @@ private:
 
 	template<class T>
 	requires std::is_floating_point_v<T>
-	void
+	typename S::iterator
 	encode(typename S::iterator p, T v)
 	{
 		/* nan is encoded as 2-byte float */
 		if (std::isnan(v)) {
 			auto b = {ih::fp16, 0x7e_b, 0x00_b};
-			s_.insert(p, std::begin(b), std::end(b));
-			return;
+			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
 		}
 
 		/* infinity is encoded as 2-byte float */
 		if (std::isinf(v)) {
 			auto b = {ih::fp16, v > 0 ? 0x7c_b : 0xfc_b, 0x00_b};
-			s_.insert(p, std::begin(b), std::end(b));
-			return;
+			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
 		}
 
 		/* encode doubles as float when no data is lost */
 		if (std::is_same_v<T, double> && v == static_cast<float>(v)) {
-			encode(p, static_cast<float>(v));
-			return;
+			return encode(p, static_cast<float>(v));
 		}
 
 		std::array<std::byte, sizeof v + 1> b{
 				  sizeof v == 4 ? ih::fp32 : ih::fp32};
 		write_be(&b[1], &v);
-		s_.insert(p, std::begin(b), std::end(b));
+		return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
 	}
 
 	template<class T>
 	requires std::is_integral_v<T>
-	void
+	typename S::iterator
 	encode(typename S::iterator p, T v)
 	{
-		encode_ih(p, v < 0 ? ih::major::negint : ih::major::posint,
-			  std::make_unsigned_t<T>(v < 0 ? -v - 1 : v));
+		return encode_ih(p, v < 0 ? ih::major::negint : ih::major::posint,
+				 std::make_unsigned_t<T>(v < 0 ? -v - 1 : v));
 	}
 
-	void
+	typename S::iterator
 	encode(typename S::iterator p, std::nullptr_t)
 	{
-		s_.insert(p, ih::null);
+		return s_.insert(p, ih::null) + 1;
 	}
 
-	void
+	typename S::iterator
 	encode(typename S::iterator p, bool v)
 	{
-		s_.insert(p, v ? ih::bool_true : ih::bool_false);
+		return s_.insert(p, v ? ih::bool_true : ih::bool_false) + 1;
 	}
 
-	void
+	typename S::iterator
 	encode(typename S::iterator p, tag t)
 	{
 		if (t == tag::invalid_1 || t == tag::invalid_2 ||
 		    t == tag::invalid_3)
 			throw std::invalid_argument("tag value is invalid");
-		encode_ih(p, ih::major::tag,
-			  static_cast<std::underlying_type_t<tag>>(t));
+		return encode_ih(p, ih::major::tag,
+				 static_cast<std::underlying_type_t<tag>>(t));
 	}
 
-	void
+	typename S::iterator
 	encode(typename S::iterator p, std::span<const typename S::value_type> v)
 	{
-		s_.insert(encode_ih(p, ih::major::bytes, std::size(v)),
-			  std::begin(v), std::end(v));
+		return s_.insert(encode_ih(p, ih::major::bytes, std::size(v)),
+				 std::begin(v), std::end(v)) + std::size(v);
 	}
 
-	void
+	typename S::iterator
 	encode(typename S::iterator p, const char *v)
 	{
-		encode(p, std::string_view(v));
+		return encode(p, std::string_view(v));
 	}
 
-	void
+	typename S::iterator
 	encode(typename S::iterator p, std::string_view v)
 	{
 		auto vb = as_bytes(std::span(std::data(v), std::size(v)));
-		s_.insert(encode_ih(p, ih::major::utf8, std::size(vb)),
-			  std::begin(vb), std::end(vb));
+		return s_.insert(encode_ih(p, ih::major::utf8, std::size(vb)),
+				 std::begin(vb), std::end(vb)) + std::size(vb);
 
+	}
+
+	typename S::iterator
+	encode_array(typename S::iterator p, const auto &...a)
+	{
+		p = encode_ih(p, ih::major::array, sizeof ...(a));
+		((p = encode(p, a)), ...);
+		return p;
 	}
 
 	S &s_;
