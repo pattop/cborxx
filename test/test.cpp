@@ -149,8 +149,10 @@ TEST(codec, fp_nan)
 
 	/* encode */
 	cbor::codec e(buf);
-	e.push_back(std::numeric_limits<float>::quiet_NaN());
-	e.push_back(std::numeric_limits<double>::quiet_NaN());
+	e.push_back(
+		std::numeric_limits<float>::quiet_NaN(),
+		std::numeric_limits<double>::quiet_NaN()
+	);
 
 	/* verify */
 	const std::array exp{
@@ -179,8 +181,10 @@ TEST(codec, fp_positive_infinity)
 
 	/* encode */
 	cbor::codec e(buf);
-	e.push_back(std::numeric_limits<float>::infinity());
-	e.push_back(std::numeric_limits<double>::infinity());
+	e.push_back(
+		std::numeric_limits<float>::infinity(),
+		std::numeric_limits<double>::infinity()
+	);
 
 	/* verify */
 	const std::array exp{
@@ -211,8 +215,10 @@ TEST(codec, fp_negative_infinity)
 
 	/* encode */
 	cbor::codec e(buf);
-	e.push_back(-std::numeric_limits<float>::infinity());
-	e.push_back(-std::numeric_limits<double>::infinity());
+	e.push_back(
+		-std::numeric_limits<float>::infinity(),
+		-std::numeric_limits<double>::infinity()
+	);
 
 	/* verify */
 	const std::array exp{
@@ -243,10 +249,7 @@ TEST(codec, int_inline)
 
 	/* encode */
 	cbor::codec e(buf);
-	e.push_back(0);
-	e.push_back(23);
-	e.push_back(-1);
-	e.push_back(-24);
+	e.push_back(0, 23, -1, -24);
 
 	/* verify */
 	const std::array exp{
@@ -281,10 +284,7 @@ TEST(codec, int_byte)
 
 	/* encode */
 	cbor::codec e(buf);
-	e.push_back(24);
-	e.push_back(255);
-	e.push_back(-25);
-	e.push_back(-256);
+	e.push_back(24, 255, -25, -256);
 
 	/* verify */
 	const std::array exp{
@@ -322,10 +322,7 @@ TEST(codec, int_word)
 
 	/* encode */
 	cbor::codec e(buf);
-	e.push_back(256);
-	e.push_back(65535);
-	e.push_back(-257);
-	e.push_back(-65536);
+	e.push_back(256, 65535, -257, -65536);
 
 	/* verify */
 	const std::array exp{
@@ -363,11 +360,7 @@ TEST(codec, int_dword)
 
 	/* encode */
 	cbor::codec e(buf);
-	e.push_back(65536);
-	e.push_back(4294967295);
-	e.push_back(-65537);
-	e.push_back(-2147483648);
-	e.push_back(-4294967296);
+	e.push_back(65536, 4294967295, -65537, -2147483648, -4294967296);
 
 	/* verify */
 	const std::array exp{
@@ -412,10 +405,12 @@ TEST(codec, int_qword)
 
 	/* encode */
 	cbor::codec e(buf);
-	e.push_back(4294967296);
-	e.push_back(18446744073709551615u);
-	e.push_back(-4294967297);
-	e.push_back(-9223372036854775807 - 1);	// big integer literals are fun
+	e.push_back(
+		4294967296,
+		18446744073709551615u,
+		-4294967297,
+		-9223372036854775807 - 1 // big integer literals are fun
+	);
 
 	/* verify */
 	const std::array exp{
@@ -476,8 +471,7 @@ TEST(codec, bignum)
 		0xfa_b, 0x04_b, 0xde_b, 0x32_b, 0xb0_b, 0xe4_b, 0x20_b, 0xee_b,
 		0x3f_b, 0x48_b, 0x9e_b, 0x2e_b, 0x21_b, 0x12_b, 0xe3_b, 0x86_b
 	};
-	e.push_back(cbor::tag::pos_bignum);
-	e.push_back(int256);
+	e.push_back(cbor::tag::pos_bignum, int256);
 
 	/* verify */
 	const std::array exp{
@@ -639,9 +633,9 @@ TEST(codec, encode_array)
 
 	/* encode */
 	cbor::codec e(buf);
-	e.push_back_array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-			  16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
-			  29, 30, 31, "foo", nullptr);
+	e.push_back(cbor::array{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+		    14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+		    29, 30, 31, "foo", nullptr});
 
 	/* verify */
 	std::array exp{
@@ -681,6 +675,39 @@ TEST(codec, encode_array)
 		    0x63_b,			// text(3)
 			0x66_b, 0x6f_b, 0x6f_b,	    // "foo"
 		    0xf6_b			// null
+	};
+	EXPECT_EQ(buf, exp);
+}
+
+TEST(codec, encode_map)
+{
+	std::vector<std::byte> buf;
+
+	/* encode */
+	cbor::codec e(buf);
+	e.push_back(
+		cbor::map{
+			{0, "foo"},
+			{"bar", 1},
+			{"baz", cbor::map{
+				{-1, nullptr}
+			}
+		}
+	});
+
+	std::array exp{
+		0xa3_b,		// map(3)
+		    0x00_b,	    // unsigned(0)
+		    0x63_b,	    // text(3)
+			0x66_b, 0x6f_b, 0x6f_b, // "foo"
+		    0x63_b,	    // text(3)
+			0x62_b, 0x61_b, 0x72_b, // "bar"
+		    0x01_b,	    // unsigned(1)
+		    0x63_b,	    // text(3)
+			0x62_b, 0x61_b, 0x7a_b, // "baz"
+		    0xa1_b,	    // map(1)
+		       0x20_b,	    // negative(0)
+		       0xf6_b	    // primitive(22)
 	};
 	EXPECT_EQ(buf, exp);
 }

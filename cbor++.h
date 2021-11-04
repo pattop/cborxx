@@ -15,6 +15,8 @@
 #include <cmath>
 #include <iterator>
 #include <span>
+#include <variant>
+#include <vector>
 
 #if defined(CBORXX_DEBUG)
 #define CBORXX_ASSERT(x) assert(x)
@@ -373,6 +375,46 @@ get_size(auto p)
 }
 
 }
+
+/*
+ * Convenience types for initialisation of cbor objects
+ *
+ * These exist purely to support list-style initialisation. See unit tests for
+ * example usage.
+ *
+ * Storing the items in a vector is unavoidable due to the limited lifetime
+ * of initializer list array temporaries.
+ */
+struct array;
+struct map;
+using item = std::variant<
+	std::span<const std::byte>,
+	std::string_view,
+	int64_t,
+	uint64_t,
+	std::nullptr_t,
+	array,
+	map,
+	double,
+	bool,
+	undefined
+>;
+
+struct array {
+	array(std::initializer_list<item> init)
+	: init_(init)
+	{ }
+
+	const std::vector<item> init_;
+};
+
+struct map {
+	map(std::initializer_list<std::pair<item, item>> init)
+	: init_(init)
+	{ }
+
+	const std::vector<std::pair<item, item>> init_;
+};
 
 /*
  * data_item
@@ -797,15 +839,9 @@ public:
 	/* void push_front(T &&v) */
 
 	void
-	push_back(const auto &v)
+	push_back(const auto &...v)
 	{
-		encode(std::end(s_), v);
-	}
-
-	void
-	push_back_array(const auto &...a)
-	{
-		encode_array(std::end(s_), a...);
+		encode_sequence(std::end(s_), v...);
 	}
 
 	/* void pop_front() */
@@ -905,6 +941,20 @@ private:
 		}
 	}
 
+	typename S::iterator
+	encode_item(typename S::iterator p, const item &i)
+	{
+		std::visit([&](auto &v) { p = encode(p, v); }, i);
+		return p;
+	}
+
+	typename S::iterator
+	encode_sequence(typename S::iterator p, const auto &...a)
+	{
+		((p = encode(p, a)), ...);
+		return p;
+	}
+
 	template<class T>
 	requires std::is_floating_point_v<T>
 	typename S::iterator
@@ -989,14 +1039,23 @@ private:
 		auto vb = as_bytes(std::span(std::data(v), std::size(v)));
 		return s_.insert(encode_ih(p, ih::major::utf8, std::size(vb)),
 				 std::begin(vb), std::end(vb)) + std::size(vb);
-
 	}
 
 	typename S::iterator
-	encode_array(typename S::iterator p, const auto &...a)
+	encode(typename S::iterator p, const array &a)
 	{
-		p = encode_ih(p, ih::major::array, sizeof ...(a));
-		((p = encode(p, a)), ...);
+		p = encode_ih(p, ih::major::array, std::size(a.init_));
+		for (const auto &i : a.init_)
+			p = encode_item(p, i);
+		return p;
+	}
+
+	typename S::iterator
+	encode(typename S::iterator p, const map &m)
+	{
+		p = encode_ih(p, ih::major::map, std::size(m.init_));
+		for (const auto &i : m.init_)
+			p = encode_item(encode_item(p, i.first), i.second);
 		return p;
 	}
 
