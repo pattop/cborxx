@@ -393,7 +393,7 @@ public:
 			case ih::bool_true:
 				return true;
 			default:
-				throw std::runtime_error("data is not boolean");
+				throw std::runtime_error("item is not boolean");
 			}
 		}
 
@@ -414,7 +414,7 @@ public:
 				throw std::range_error("integer overflow");
 			return v;
 		default:
-			throw std::runtime_error("data is not integral");
+			throw std::runtime_error("item is not integral");
 		}
 	}
 
@@ -443,7 +443,7 @@ public:
 				throw std::range_error("lossy float conversion");
 			return v;
 		default:
-			throw std::runtime_error("data is not floating point");
+			throw std::runtime_error("item is not floating point");
 		}
 	}
 
@@ -454,7 +454,7 @@ public:
 	{
 		auto d = p_.data();
 		if (ih::get_major(d) != ih::major::tag)
-			throw std::runtime_error("data is not a tag");
+			throw std::runtime_error("item is not tagged");
 		return static_cast<cbor::tag>(ih::get_arg(d));
 	}
 
@@ -465,7 +465,7 @@ public:
 		/* throws for indefinite size */
 		auto d = p_.data();
 		if (ih::get_major(d) != ih::major::bytes)
-			throw std::runtime_error("data is not bytes");
+			throw std::runtime_error("item is not bytes");
 		auto ih_sz = ih::get_ih_size(d);
 		return {d + ih_sz, d + ih_sz + ih::get_data_size(d)};
 	}
@@ -477,7 +477,7 @@ public:
 		/* throws for indefinite size */
 		auto d = p_.data();
 		if (ih::get_major(d) != ih::major::utf8)
-			throw std::runtime_error("data is not a string");
+			throw std::runtime_error("item is not a string");
 		auto ih_sz = ih::get_ih_size(d);
 		return {reinterpret_cast<const char *>(d + ih_sz),
 			static_cast<std::string_view::size_type>(ih::get_data_size(d))};
