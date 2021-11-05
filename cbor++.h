@@ -451,195 +451,6 @@ struct tagged {
 };
 
 /*
- * data_item
- */
-template<class I>
-class data_item {
-public:
-	data_item(I p)
-	: p_{p}
-	{ }
-
-	template<class T>
-	requires std::is_integral_v<T>
-	T
-	get() const
-	{
-		auto d = p_.data();
-
-		/* booleans */
-		if (std::is_same_v<T, bool>) {
-			switch (*d) {
-			case ih::bool_false:
-				return false;
-			case ih::bool_true:
-				return true;
-			default:
-				throw std::runtime_error("item is not boolean");
-			}
-		}
-
-		/* integers */
-		T v;
-		switch (ih::get_major(d)) {
-		case ih::major::posint:
-			v = ih::get_arg(d);
-			if (static_cast<uint64_t>(v) != ih::get_arg(d))
-				throw std::range_error("integer overflow");
-			return v;
-		case ih::major::negint:
-			if (ih::get_arg(d) > std::numeric_limits<int64_t>::max())
-				throw std::range_error("integer overflow");
-			v = -1 - static_cast<int64_t>(ih::get_arg(d));
-			if (static_cast<int64_t>(v) !=
-			    -1 - static_cast<int64_t>(ih::get_arg(d)))
-				throw std::range_error("integer overflow");
-			return v;
-		default:
-			throw std::runtime_error("item is not integral");
-		}
-	}
-
-	template<class T>
-	requires std::is_floating_point_v<T>
-	T
-	get() const
-	{
-		T v;
-		auto d = p_.data();
-		switch (*d) {
-		case ih::fp16:
-			if (d[2] != 0x00_b)
-				throw std::runtime_error("float16 not supported");
-			if (d[1] == 0x7e_b)
-				return std::numeric_limits<T>::quiet_NaN();
-			if (d[1] == 0x7c_b)
-				return std::numeric_limits<T>::infinity();
-			if (d[1] == 0xfc_b)
-				return -std::numeric_limits<T>::infinity();
-			throw std::runtime_error("float16 not supported");
-		case ih::fp32:
-			return read_be<float>(d + 1);
-		case ih::fp64:
-			if (auto vd = read_be<double>(d + 1); v = vd, v != vd)
-				throw std::range_error("lossy float conversion");
-			return v;
-		default:
-			throw std::runtime_error("item is not floating point");
-		}
-	}
-
-	tag
-	get_tag() const
-	{
-		auto d = p_.data();
-		if (ih::get_major(d) != ih::major::tag)
-			throw std::runtime_error("item is not tagged");
-		return static_cast<cbor::tag>(ih::get_arg(d));
-	}
-
-#warning constrain this to work only when p.data() evaluates to a contiguous iterator
-	std::span<const std::byte>
-	get_bytes() const
-	{
-		/* throws for indefinite size */
-		auto d = p_.data();
-		if (ih::get_major(d) != ih::major::bytes)
-			throw std::runtime_error("item is not bytes");
-		auto ih_sz = ih::get_ih_size(d);
-		return {d + ih_sz, d + ih_sz + ih::get_data_size(d)};
-	}
-
-#warning constrain this to work only when p.data() evaluates to a contiguous iterator
-	std::string_view
-	get_string() const
-	{
-		/* throws for indefinite size */
-		auto d = p_.data();
-		if (ih::get_major(d) != ih::major::utf8)
-			throw std::runtime_error("item is not a string");
-		auto ih_sz = ih::get_ih_size(d);
-		return {reinterpret_cast<const char *>(d + ih_sz),
-			static_cast<std::string_view::size_type>(ih::get_data_size(d))};
-	}
-
-	cbor::type
-	type() const
-	{
-		auto d = p_.data();
-		switch (ih::get_major(d)) {
-		case ih::major::posint: {
-			auto sz = ih::get_arg_size(d);
-			auto val = ih::get_arg(d);
-			if (sz < 4)
-				return cbor::type::int32;
-			if (sz == 4)
-				return val > std::numeric_limits<int32_t>::max()
-				    ? cbor::type::uint32 : cbor::type::int32;
-			return val > std::numeric_limits<int64_t>::max()
-			    ? cbor::type::uint64 : cbor::type::int64;
-		}
-		case ih::major::negint: {
-			auto sz = ih::get_arg_size(d);
-			auto val = ih::get_arg(d);
-			if (sz < 4)
-				return cbor::type::int32;
-			return val > std::numeric_limits<int32_t>::max() ?
-			    cbor::type::int64 : cbor::type::int32;
-		}
-		case ih::major::bytes:
-			return cbor::type::bytes;
-		case ih::major::utf8:
-			return cbor::type::string;
-		case ih::major::array:
-			return cbor::type::array;
-		case ih::major::map:
-			return cbor::type::map;
-		case ih::major::tag:
-			return cbor::type::tag;
-		case ih::major::special:
-			switch (static_cast<ih::special>(ih::get_ai(d))) {
-			case ih::special::bool_false:
-			case ih::special::bool_true:
-				return cbor::type::boolean;
-			case ih::special::null:
-				return cbor::type::null;
-			case ih::special::undefined:
-				return cbor::type::undefined;
-			case ih::special::extended:
-				throw std::runtime_error("extended special types are not supported");
-			case ih::special::fp16:
-			case ih::special::fp32:
-				return cbor::type::fp32;
-			case ih::special::fp64:
-				return cbor::type::fp64;
-			case ih::special::indefinite_break:
-				return cbor::type::indefinite_break;
-			default:
-				throw std::runtime_error("invalid special type");
-			}
-		default:
-			unreachable();
-		}
-	}
-
-	const data_item<I> *
-	operator->() const
-	{
-		return this;
-	}
-
-	data_item<I> *
-	operator->()
-	{
-		return this;
-	}
-
-private:
-	I p_;
-};
-
-/*
  * codec - raw CBOR codec
  *
  * Indexes refer to CBOR data items.
@@ -647,16 +458,15 @@ private:
  *
  * This is for low level manipulation of CBOR encoded data.
  */
+template<class> class data_item;
 template<class S>
 requires std::is_same_v<typename S::value_type, std::byte>
 class codec {
-public:
-	template<bool> class itr__;
-	using iterator = itr__<false>;
-	using const_iterator = itr__<true>;
+	template<class> friend class data_item;
 
-	using reference = data_item<iterator>;
-	using const_reference = const data_item<const_iterator>;
+public:
+	using reference = data_item<codec<S>>;
+	using const_reference = const data_item<const codec<S>>;
 	using difference_type = std::ptrdiff_t;
 	using size_type = std::size_t;
 
@@ -782,31 +592,31 @@ public:
 		reference
 		operator*() const
 		{
-			return *this;
+			CBORXX_ASSERT(c_);
+			return {*c_, it_};
 		}
 
 		reference
 		operator->() const
 		{
-			return *this;
+			CBORXX_ASSERT(c_);
+			return {*c_, it_};
 		}
 
 		reference
 		operator[](size_type d) const
 		{
-			return *this + d;
-		}
-
-		auto
-		data() const
-		{
-			return c_->data(it_);
+			CBORXX_ASSERT(c_);
+			CBORXX_ASSERT(it_ + d < std::size(*c_));
+			return {*c_, it_ + d};
 		}
 
 	private:
 		size_type it_;
 		container *c_;
 	};
+	using iterator = itr__<false>;
+	using const_iterator = itr__<true>;
 
 	/*
 	 * Constructor for CBOR codec using storage container S.
@@ -882,13 +692,15 @@ public:
 	reference
 	operator[](size_type i)
 	{
-		return iterator(i, this);
+		CBORXX_ASSERT(i < size());
+		return {*this, i};
 	}
 
 	const_reference
 	operator[](size_type i) const
 	{
-		return const_iterator(i, this);
+		CBORXX_ASSERT(i < size());
+		return {*this, i};
 	}
 
 	/* reference at(size_type); */
@@ -1093,6 +905,209 @@ private:
 
 
 	S &s_;
+};
+
+/*
+ * data_item
+ */
+template<class C>
+class data_item {
+public:
+	data_item(C &c, typename C::size_type it)
+	: c_{c}
+	, it_{it}
+	{ }
+
+	data_item(const data_item &) = delete;
+
+	data_item(data_item &&r) = delete;
+
+	~data_item() = default;
+
+	/*
+	 * get - get value of data item
+	 */
+	template<class T>
+	requires std::is_integral_v<T>
+	T
+	get() const
+	{
+		auto d = c_.data(it_);
+
+		/* booleans */
+		if (std::is_same_v<T, bool>) {
+			switch (*d) {
+			case ih::bool_false:
+				return false;
+			case ih::bool_true:
+				return true;
+			default:
+				throw std::runtime_error("item is not boolean");
+			}
+		}
+
+		/* integers */
+		T v;
+		switch (ih::get_major(d)) {
+		case ih::major::posint:
+			v = ih::get_arg(d);
+			if (static_cast<uint64_t>(v) != ih::get_arg(d))
+				throw std::range_error("integer overflow");
+			return v;
+		case ih::major::negint:
+			if (ih::get_arg(d) > std::numeric_limits<int64_t>::max())
+				throw std::range_error("integer overflow");
+			v = -1 - static_cast<int64_t>(ih::get_arg(d));
+			if (static_cast<int64_t>(v) !=
+			    -1 - static_cast<int64_t>(ih::get_arg(d)))
+				throw std::range_error("integer overflow");
+			return v;
+		default:
+			throw std::runtime_error("item is not integral");
+		}
+	}
+
+	template<class T>
+	requires std::is_floating_point_v<T>
+	T
+	get() const
+	{
+		T v;
+		auto d = c_.data(it_);
+		switch (*d) {
+		case ih::fp16:
+			if (d[2] != 0x00_b)
+				throw std::runtime_error("float16 not supported");
+			if (d[1] == 0x7e_b)
+				return std::numeric_limits<T>::quiet_NaN();
+			if (d[1] == 0x7c_b)
+				return std::numeric_limits<T>::infinity();
+			if (d[1] == 0xfc_b)
+				return -std::numeric_limits<T>::infinity();
+			throw std::runtime_error("float16 not supported");
+		case ih::fp32:
+			return read_be<float>(d + 1);
+		case ih::fp64:
+			if (auto vd = read_be<double>(d + 1); v = vd, v != vd)
+				throw std::range_error("lossy float conversion");
+			return v;
+		default:
+			throw std::runtime_error("item is not floating point");
+		}
+	}
+
+	tag
+	get_tag() const
+	{
+		auto d = c_.data(it_);
+		if (ih::get_major(d) != ih::major::tag)
+			throw std::runtime_error("item is not tagged");
+		return static_cast<cbor::tag>(ih::get_arg(d));
+	}
+
+#warning constrain this to work only when p.data() evaluates to a contiguous iterator
+	std::span<const std::byte>
+	get_bytes() const
+	{
+		/* throws for indefinite size */
+		auto d = std::to_address(c_.data(it_));
+		if (ih::get_major(d) != ih::major::bytes)
+			throw std::runtime_error("item is not bytes");
+		auto ih_sz = ih::get_ih_size(d);
+		return {d + ih_sz, d + ih_sz + ih::get_data_size(d)};
+	}
+
+#warning constrain this to work only when p.data() evaluates to a contiguous iterator
+	std::string_view
+	get_string() const
+	{
+		/* throws for indefinite size */
+		auto d = std::to_address(c_.data(it_));
+		if (ih::get_major(d) != ih::major::utf8)
+			throw std::runtime_error("item is not a string");
+		auto ih_sz = ih::get_ih_size(d);
+		return {reinterpret_cast<const char *>(d + ih_sz),
+			static_cast<std::string_view::size_type>(ih::get_data_size(d))};
+	}
+
+	/*
+	 * type
+	 */
+	cbor::type
+	type() const
+	{
+		auto d = c_.data(it_);
+		switch (ih::get_major(d)) {
+		case ih::major::posint: {
+			auto sz = ih::get_arg_size(d);
+			auto val = ih::get_arg(d);
+			if (sz < 4)
+				return cbor::type::int32;
+			if (sz == 4)
+				return val > std::numeric_limits<int32_t>::max()
+				    ? cbor::type::uint32 : cbor::type::int32;
+			return val > std::numeric_limits<int64_t>::max()
+			    ? cbor::type::uint64 : cbor::type::int64;
+		}
+		case ih::major::negint: {
+			auto sz = ih::get_arg_size(d);
+			auto val = ih::get_arg(d);
+			if (sz < 4)
+				return cbor::type::int32;
+			return val > std::numeric_limits<int32_t>::max() ?
+			    cbor::type::int64 : cbor::type::int32;
+		}
+		case ih::major::bytes:
+			return cbor::type::bytes;
+		case ih::major::utf8:
+			return cbor::type::string;
+		case ih::major::array:
+			return cbor::type::array;
+		case ih::major::map:
+			return cbor::type::map;
+		case ih::major::tag:
+			return cbor::type::tag;
+		case ih::major::special:
+			switch (static_cast<ih::special>(ih::get_ai(d))) {
+			case ih::special::bool_false:
+			case ih::special::bool_true:
+				return cbor::type::boolean;
+			case ih::special::null:
+				return cbor::type::null;
+			case ih::special::undefined:
+				return cbor::type::undefined;
+			case ih::special::extended:
+				throw std::runtime_error("extended special types are not supported");
+			case ih::special::fp16:
+			case ih::special::fp32:
+				return cbor::type::fp32;
+			case ih::special::fp64:
+				return cbor::type::fp64;
+			case ih::special::indefinite_break:
+				return cbor::type::indefinite_break;
+			default:
+				throw std::runtime_error("invalid special type");
+			}
+		default:
+			unreachable();
+		}
+	}
+
+	const data_item<C> *
+	operator->() const
+	{
+		return this;
+	}
+
+	data_item<C> *
+	operator->()
+	{
+		return this;
+	}
+
+private:
+	C &c_;
+	const typename C::size_type it_;
 };
 
 }
