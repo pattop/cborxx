@@ -517,10 +517,8 @@ public:
 		}
 	}
 
-	template<class T>
-	requires std::is_same_v<T, cbor::tag>
-	cbor::tag
-	get() const
+	tag
+	get_tag() const
 	{
 		auto d = p_.data();
 		if (ih::get_major(d) != ih::major::tag)
