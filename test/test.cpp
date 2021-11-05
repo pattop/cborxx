@@ -471,7 +471,7 @@ TEST(codec, bignum)
 		0xfa_b, 0x04_b, 0xde_b, 0x32_b, 0xb0_b, 0xe4_b, 0x20_b, 0xee_b,
 		0x3f_b, 0x48_b, 0x9e_b, 0x2e_b, 0x21_b, 0x12_b, 0xe3_b, 0x86_b
 	};
-	e.push_back(cbor::tag::pos_bignum, int256);
+	e.push_back(cbor::tagged{cbor::tag::pos_bignum, int256});
 
 	/* verify */
 	const std::array exp{
@@ -498,27 +498,21 @@ TEST(codec, tags)
 {
 	std::vector<std::byte> buf;
 
-	std::array tags = {
-		static_cast<cbor::tag>(0),
-		static_cast<cbor::tag>(23),
-		static_cast<cbor::tag>(24),
-		static_cast<cbor::tag>(255),
-		static_cast<cbor::tag>(65536),
-		static_cast<cbor::tag>(4294967296),
-	};
-	std::array invalid_tags =  {
-		cbor::tag::invalid_1,
-		cbor::tag::invalid_2,
-		cbor::tag::invalid_3,
+	const std::array tags{
+		0_tag, 23_tag, 24_tag, 255_tag, 256_tag, 65534_tag, 65536_tag,
+		4294967294_tag, 4294967296_tag, 18446744073709551614_tag
 	};
 
 	/* encode */
 	cbor::codec e(buf);
-	for (auto &t : tags)
-		e.push_back(t);
-	for (auto &t : invalid_tags)
-		EXPECT_THROW(e.push_back(t), std::invalid_argument);
-	e.push_back(0);
+	e.push_back(
+		cbor::tagged{tags[0], cbor::tagged{tags[1], cbor::tagged{tags[2],
+		cbor::tagged{tags[3], cbor::tagged{tags[4], cbor::tagged{tags[5],
+		cbor::tagged{tags[6], cbor::tagged{tags[7], cbor::tagged{tags[8],
+		cbor::tagged{tags[9], 0}}}}}}}}}});
+	EXPECT_THROW(e.push_back(cbor::tagged{cbor::tag::invalid_1, 0}), std::invalid_argument);
+	EXPECT_THROW(e.push_back(cbor::tagged{cbor::tag::invalid_2, 0}), std::invalid_argument);
+	EXPECT_THROW(e.push_back(cbor::tagged{cbor::tag::invalid_3, 0}), std::invalid_argument);
 
 	/* verify */
 	const std::array exp{
@@ -526,8 +520,12 @@ TEST(codec, tags)
 		0xd7_b,					    // tag(23)
 		0xd8_b, 0x18_b,                             // tag(24)
 		0xd8_b, 0xff_b,				    // tag(255)
+		0xd9_b, 0x01_b, 0x00_b,			    // tag(256)
+		0xd9_b, 0xff_b, 0xfe_b,			    // tag(65534)
 		0xda_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b,	    // tag(65536)
+		0xda_b, 0xff_b, 0xff_b, 0xff_b, 0xfe_b,	    // tag(4294967294)
 		0xdb_b, 0x00_b, 0x00_b, 0x00_b, 0x01_b, 0x00_b, 0x00_b, 0x00_b, 0x00_b,	// tag(4294967296)
+		0xdb_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xff_b, 0xfe_b,	// tag(18446744073709551614)
 		0x00_b
 	};
 	EXPECT_EQ(buf, exp);

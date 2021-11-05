@@ -409,6 +409,7 @@ get_size(auto p)
  */
 struct array;
 struct map;
+struct tagged;
 using item = std::variant<
 	std::span<const std::byte>,
 	std::string_view,
@@ -417,6 +418,7 @@ using item = std::variant<
 	std::nullptr_t,
 	array,
 	map,
+	tagged,
 	double,
 	bool,
 	undefined
@@ -436,6 +438,16 @@ struct map {
 	{ }
 
 	const std::vector<std::pair<item, item>> init_;
+};
+
+struct tagged {
+	tagged(tag t, const item &i)
+	: tag_(t)
+	, item_{i}
+	{ }
+
+	const tag tag_;
+	const std::vector<item> item_;
 };
 
 /*
@@ -1031,16 +1043,6 @@ private:
 	}
 
 	typename S::iterator
-	encode(typename S::iterator p, tag t)
-	{
-		if (t == tag::invalid_1 || t == tag::invalid_2 ||
-		    t == tag::invalid_3)
-			throw std::invalid_argument("tag value is invalid");
-		return encode_ih(p, ih::major::tag,
-				 static_cast<std::underlying_type_t<tag>>(t));
-	}
-
-	typename S::iterator
 	encode(typename S::iterator p, std::span<const typename S::value_type> v)
 	{
 		return s_.insert(encode_ih(p, ih::major::bytes, std::size(v)),
@@ -1078,6 +1080,17 @@ private:
 			p = encode_item(encode_item(p, i.first), i.second);
 		return p;
 	}
+
+	typename S::iterator
+	encode(typename S::iterator p, const tagged &t)
+	{
+		if (t.tag_ == tag::invalid_1 || t.tag_ == tag::invalid_2 ||
+		    t.tag_ == tag::invalid_3)
+			throw std::invalid_argument("tag value is invalid");
+		auto tv = static_cast<std::underlying_type_t<tag>>(t.tag_);
+		return encode_item(encode_ih(p, ih::major::tag, tv), t.item_[0]);
+	}
+
 
 	S &s_;
 };
