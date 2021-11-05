@@ -86,6 +86,28 @@ enum class tag : uint64_t {
 	invalid_3 = 18446744073709551615u,  /* always invalid */
 };
 
+constexpr
+tag
+make_tag(unsigned long long v)
+{
+	auto t = static_cast<tag>(v);
+	CBORXX_ASSERT(t != tag::invalid_1);
+	CBORXX_ASSERT(t != tag::invalid_2);
+	CBORXX_ASSERT(t != tag::invalid_3);
+	return t;
+}
+
+inline namespace literals {
+
+constexpr
+tag
+operator""_tag(unsigned long long v)
+{
+	return make_tag(v);
+}
+
+}
+
 /*
  * byteswap - byteswap a value
  *
