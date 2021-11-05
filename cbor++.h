@@ -625,7 +625,18 @@ public:
 	: s_{s}
 	{ }
 
-	/* codec &operator=(const codec&); */
+	codec(const codec &) = delete;
+
+	codec(codec &&) = delete;
+
+	~codec() = default;
+
+	codec &
+	operator=(const codec&) = delete;
+
+	codec &
+	operator=(codec &&) = delete;
+
 	/* bool operator==(const codec&) const; */
 	/* bool operator!=(const codec&) const; */
 
