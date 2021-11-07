@@ -1016,7 +1016,6 @@ public:
 		return static_cast<cbor::tag>(ih::get_arg(d));
 	}
 
-#warning constrain this to work only when p.data() evaluates to a contiguous iterator
 	std::span<const std::byte>
 	get_bytes() const
 	{
@@ -1028,7 +1027,6 @@ public:
 		return {d + ih_sz, d + ih_sz + ih::get_data_size(d)};
 	}
 
-#warning constrain this to work only when p.data() evaluates to a contiguous iterator
 	std::string_view
 	get_string() const
 	{
