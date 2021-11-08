@@ -465,8 +465,12 @@ class codec {
 	template<class> friend class data_item;
 
 public:
-	using reference = data_item<codec<S>>;
-	using const_reference = const data_item<const codec<S>>;
+	template<bool> class itr__;
+	using iterator = itr__<false>;
+	using const_iterator = itr__<true>;
+
+	using reference = data_item<iterator>;
+	using const_reference = const data_item<const_iterator>;
 	using difference_type = std::ptrdiff_t;
 	using size_type = std::size_t;
 
@@ -476,6 +480,7 @@ public:
 	template<bool const__>
 	class itr__ {
 		friend class codec;
+		template<class> friend class data_item;
 
 	public:
 		using container = std::conditional_t<const__, const codec, codec>;
@@ -593,14 +598,14 @@ public:
 		operator*() const
 		{
 			CBORXX_ASSERT(c_);
-			return {*c_, it_};
+			return *this;
 		}
 
 		reference
 		operator->() const
 		{
 			CBORXX_ASSERT(c_);
-			return {*c_, it_};
+			return *this;
 		}
 
 		reference
@@ -608,15 +613,19 @@ public:
 		{
 			CBORXX_ASSERT(c_);
 			CBORXX_ASSERT(it_ + d < std::size(*c_));
-			return {*c_, it_ + d};
+			return *this + d;
+		}
+
+		itr__
+		next() const
+		{
+			return reference(*this).next().data();
 		}
 
 	private:
 		size_type it_;
 		container *c_;
 	};
-	using iterator = itr__<false>;
-	using const_iterator = itr__<true>;
 
 	/*
 	 * Constructor for CBOR codec using storage container S.
@@ -704,14 +713,14 @@ public:
 	operator[](size_type i)
 	{
 		CBORXX_ASSERT(i < size());
-		return {*this, i};
+		return iterator{i, this};
 	}
 
 	const_reference
 	operator[](size_type i) const
 	{
 		CBORXX_ASSERT(i < size());
-		return {*this, i};
+		return const_iterator{i, this};
 	}
 
 	/* reference at(size_type); */
@@ -723,7 +732,13 @@ public:
 	/* template<class I> iterator insert(const_iterator pos, I b, I e) */
 	/* iterator insert(const_iterator pos, std::initializer_list<T> l) */
 	/* iterator erase(const_iterator pos) */
-	/* iterator erase(const_iterator begin, const_iterator end) */
+
+	iterator
+	erase(const_iterator begin, const_iterator end)
+	{
+		s_.erase(data(begin), data(end));
+		return {begin.it_, this};
+	}
 
 	void
 	clear()
@@ -756,15 +771,56 @@ public:
 		return s_.empty();
 	}
 
+	/*
+	 * Extensions for CBOR codec
+	 */
+
+	/*
+	 * replace - replace a cbor data item
+	 */
+	iterator
+	replace(const_iterator p, const_iterator v)
+	{
+#warning fixme: stupid version just to get tests running
+		/* this is tricky as erase invalidates 'v' and insert cannot
+		 * take iterators into *this, so, take a copy for now */
+		S tmp{data(v), data(next(v))};
+		p = erase(p, next(p));
+		s_.insert(data(p), std::begin(tmp), std::end(tmp));
+		return {p.it_, this};
+	}
+
+	iterator
+	replace(const_iterator p, const item &v)
+	{
+#warning fixme: stupid version just to get tests running
+		/* TODO: resize & overwrite existing item */
+		p = erase(p, next(p));
+		encode_item(data(p), v);
+		return {p.it_, this};
+	}
+
+	/*
+	 * next - get next cbor item at this level
+	 */
+	template<class I>
+	requires std::is_convertible_v<I, const_iterator>
+	I
+	next(I i) const
+	{
+		CBORXX_ASSERT(i != end());
+		return i.next();
+	}
+
 private:
 	/* get raw cbor storage for item i */
 	auto
-	data(size_type i) const
+	data(const_iterator i) const
 	{
 #warning fixme: stupid version just to get tests running
 		auto p = std::begin(s_);
 		auto len = ih::get_size(p);
-		for (size_type n = 0; n < i; ++n)
+		for (size_type n = 0; n < i.it_; ++n)
 			len = ih::get_size(p += len);
 		return p;
 	}
@@ -921,12 +977,11 @@ private:
 /*
  * data_item
  */
-template<class C>
+template<class I>
 class data_item {
 public:
-	data_item(C &c, typename C::size_type it)
-	: c_{c}
-	, it_{it}
+	data_item(I it)
+	: it_{it}
 	{ }
 
 	data_item(const data_item &) = delete;
@@ -934,6 +989,20 @@ public:
 	data_item(data_item &&r) = delete;
 
 	~data_item() = default;
+
+	data_item&
+	operator=(const data_item &i)
+	{
+		it_.c_->replace(it_, i.it_);
+		return *this;
+	}
+
+	data_item&
+	operator=(const item &i)
+	{
+		it_.c_->replace(it_, i);
+		return *this;
+	}
 
 	/*
 	 * get - get value of data item
@@ -943,7 +1012,7 @@ public:
 	T
 	get() const
 	{
-		auto d = c_.data(it_);
+		auto d = it_.c_->data(it_);
 
 		/* booleans */
 		if (std::is_same_v<T, bool>) {
@@ -984,7 +1053,7 @@ public:
 	get() const
 	{
 		T v;
-		auto d = c_.data(it_);
+		auto d = it_.c_->data(it_);
 		switch (*d) {
 		case ih::fp16:
 			if (d[2] != 0x00_b)
@@ -1010,7 +1079,7 @@ public:
 	tag
 	get_tag() const
 	{
-		auto d = c_.data(it_);
+		auto d = it_.c_->data(it_);
 		if (ih::get_major(d) != ih::major::tag)
 			throw std::runtime_error("item is not tagged");
 		return static_cast<cbor::tag>(ih::get_arg(d));
@@ -1020,7 +1089,7 @@ public:
 	get_bytes() const
 	{
 		/* throws for indefinite size */
-		auto d = std::to_address(c_.data(it_));
+		auto d = std::to_address(it_.c_->data(it_));
 		if (ih::get_major(d) != ih::major::bytes)
 			throw std::runtime_error("item is not bytes");
 		auto ih_sz = ih::get_ih_size(d);
@@ -1031,7 +1100,7 @@ public:
 	get_string() const
 	{
 		/* throws for indefinite size */
-		auto d = std::to_address(c_.data(it_));
+		auto d = std::to_address(it_.c_->data(it_));
 		if (ih::get_major(d) != ih::major::utf8)
 			throw std::runtime_error("item is not a string");
 		auto ih_sz = ih::get_ih_size(d);
@@ -1045,7 +1114,7 @@ public:
 	cbor::type
 	type() const
 	{
-		auto d = c_.data(it_);
+		auto d = it_.c_->data(it_);
 		switch (ih::get_major(d)) {
 		case ih::major::posint: {
 			auto sz = ih::get_arg_size(d);
@@ -1102,21 +1171,60 @@ public:
 		}
 	}
 
-	const data_item<C> *
+	const data_item<I> *
 	operator->() const
 	{
 		return this;
 	}
 
-	data_item<C> *
+	data_item<I> *
 	operator->()
 	{
 		return this;
 	}
 
+	/*
+	 * untag - get untagged data item
+	 */
+	data_item<I>
+	untag() const
+	{
+		if (ih::get_major(it_.c_->data(it_)) != ih::major::tag)
+			throw std::runtime_error("data is not tagged");
+		return {it_ + 1};
+	}
+
+	/*
+	 * next - return next data item at this level
+	 */
+	data_item<I>
+	next() const
+	{
+		switch (ih::get_major(it_.c_->data(it_))) {
+#warning fixme
+		case ih::major::array:
+//			return array(it_).end();
+		case ih::major::map:
+//			return map(it_).end();
+			assert(!"todo");
+		case ih::major::tag:
+			return untag().next();
+		default:
+			return {it_ + 1};
+		}
+	}
+
+	/*
+	 * data - get raw cbor data
+	 */
+	I
+	data() const
+	{
+		return it_;
+	}
+
 private:
-	C &c_;
-	const typename C::size_type it_;
+	const I it_;
 };
 
 }

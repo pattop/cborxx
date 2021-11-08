@@ -625,6 +625,31 @@ TEST(codec, iterator)
 	EXPECT_EQ(i + 5, end(d));
 }
 
+TEST(codec, assignment)
+{
+	std::vector<std::byte> buf;
+
+	cbor::codec c(buf);
+	c.push_back(0);
+	c.push_back("foo");
+
+	EXPECT_EQ(size(c), 2);
+	EXPECT_EQ(c[0].get<int>(), 0);
+	EXPECT_EQ(c[1].get_string(), "foo");
+
+	c[0] = 1;
+
+	EXPECT_EQ(size(c), 2);
+	EXPECT_EQ(c[0].get<int>(), 1);
+	EXPECT_EQ(c[1].get_string(), "foo");
+
+	c[0] = c[1];
+
+	EXPECT_EQ(size(c), 2);
+	EXPECT_EQ(c[0].get_string(), "foo");
+	EXPECT_EQ(c[1].get_string(), "foo");
+}
+
 TEST(codec, encode_array)
 {
 	std::vector<std::byte> buf;
