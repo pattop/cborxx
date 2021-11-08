@@ -658,11 +658,11 @@ TEST(codec, encode_array)
 	cbor::codec e(buf);
 	e.push_back(cbor::array{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
 		    14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
-		    29, 30, 31, "foo", nullptr});
+		    29, 30, 31, cbor::array{"foo", "bar"}, "baz", nullptr});
 
 	/* verify */
-	std::array exp{
-		0x98_b, 0x22_b,		    // array(34)
+	const std::array exp{
+		0x98_b, 0x23_b,		    // array(34)
 		    0x00_b,			// unsigned(0)
 		    0x01_b,			// unsigned(1)
 		    0x02_b,			// unsigned(2)
@@ -695,8 +695,13 @@ TEST(codec, encode_array)
 		    0x18_b, 0x1d_b,		// unsigned(29)
 		    0x18_b, 0x1e_b,		// unsigned(30)
 		    0x18_b, 0x1f_b,		// unsigned(31)
+		    0x82_b,			// array(2)
+			0x63_b,			// text(3)
+				0x66_b, 0x6F_b, 0x6F_b, // "foo"
+			0x63_b,
+				0x62_b, 0x61_b, 0x72_b, // "bar"
 		    0x63_b,			// text(3)
-			0x66_b, 0x6f_b, 0x6f_b,	    // "foo"
+			0x62_b, 0x61_b, 0x7a_b,	    // "baz"
 		    0xf6_b			// null
 	};
 	EXPECT_EQ(buf, exp);
