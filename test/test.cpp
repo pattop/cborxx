@@ -487,11 +487,11 @@ TEST(codec, bignum)
 	/* decode */
 	const cbor::codec d(exp);
 	EXPECT_EQ(d[0].get_tag(), cbor::tag::pos_bignum);
-	EXPECT_EQ(d[1].get_bytes(), int256);
+	EXPECT_EQ(d[0].untag().get_bytes(), int256);
 
 	/* type checks */
 	EXPECT_EQ(d[0].type(), cbor::type::tag);
-	EXPECT_EQ(d[1].type(), cbor::type::bytes);
+	EXPECT_EQ(d[0].untag().type(), cbor::type::bytes);
 }
 
 TEST(codec, tags)
@@ -532,18 +532,20 @@ TEST(codec, tags)
 
 	/* decode */
 	const cbor::codec d(exp);
-	for (auto i = 0u; i < size(tags); ++i)
-		EXPECT_EQ(d[i].get_tag(), tags[i]);
-	EXPECT_EQ(d[size(tags)].get<int>(), 0);
+	auto it = begin(d);
+	for (auto i = 0u; i < size(tags); ++i, it = it->untag().data())
+		EXPECT_EQ(it->get_tag(), tags[i]);
+	EXPECT_EQ(it->get<int>(), 0);
 
 	/* type checks */
-	for (auto i = 0u; i < size(tags); ++i) {
-		EXPECT_EQ(d[i].type(), cbor::type::tag);
-		EXPECT_THROW(d[i].get<bool>(), std::runtime_error);
-		EXPECT_THROW(d[i].get<int>(), std::runtime_error);
-		EXPECT_THROW(d[i].get<float>(), std::runtime_error);
-		EXPECT_THROW(d[i].get_bytes(), std::runtime_error);
-		EXPECT_THROW(d[i].get_string(), std::runtime_error);
+	it = begin(d);
+	for (auto i = 0u; i < size(tags); ++i, it = it->untag().data()) {
+		EXPECT_EQ(it->type(), cbor::type::tag);
+		EXPECT_THROW(it->get<bool>(), std::runtime_error);
+		EXPECT_THROW(it->get<int>(), std::runtime_error);
+		EXPECT_THROW(it->get<float>(), std::runtime_error);
+		EXPECT_THROW(it->get_bytes(), std::runtime_error);
+		EXPECT_THROW(it->get_string(), std::runtime_error);
 	}
 }
 
@@ -616,7 +618,6 @@ TEST(codec, iterator)
 	EXPECT_TRUE(std::isnan((++i)->get<float>()));
 	EXPECT_EQ(i[2]->get<double>(), 3.14159);
 	EXPECT_EQ((i + 2)->get<double>(), 3.14159);
-	EXPECT_EQ(i[-2]->get<int>(), 0);
 	EXPECT_EQ((i - 2)->get<int>(), 0);
 	EXPECT_TRUE(std::isnan(i--->get<float>()));
 	EXPECT_EQ((--i)->get<int>(), 0);
@@ -650,7 +651,7 @@ TEST(codec, assignment)
 	EXPECT_EQ(c[1].get_string(), "foo");
 }
 
-TEST(codec, encode_array)
+TEST(codec, array)
 {
 	std::vector<std::byte> buf;
 
@@ -705,6 +706,36 @@ TEST(codec, encode_array)
 		    0xf6_b			// null
 	};
 	EXPECT_EQ(buf, exp);
+
+	/* decode */
+	const cbor::codec d(exp);
+	const auto &a = d[0].get_array();
+	for (auto i = 0; i < 32; ++i)
+		EXPECT_EQ(a[i].get<int>(), i);
+	EXPECT_EQ(a[32].get_array()[0].get_string(), "foo");
+	EXPECT_EQ(a[32].get_array()[1].get_string(), "bar");
+	EXPECT_EQ(a[33].get_string(), "baz");
+	EXPECT_EQ(a[34].type(), cbor::type::null);
+
+	for (int idx = 0; const auto &i : a) {
+		switch (idx) {
+		case 0 ... 31:
+			EXPECT_EQ(i->get<int>(), idx);
+			break;
+		case 32:
+			EXPECT_EQ(i->get_array()[0].get_string(), "foo");
+			EXPECT_EQ(i->get_array()[1].get_string(), "bar");
+			break;
+		case 33:
+			EXPECT_EQ(i->get_string(), "baz");
+			break;
+		case 34:
+			EXPECT_EQ(i->type(), cbor::type::null);
+			break;
+		}
+		EXPECT_LT(idx, 35);
+		++idx;
+	}
 }
 
 TEST(codec, encode_map)

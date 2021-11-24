@@ -463,6 +463,8 @@ template<class S>
 requires std::is_same_v<typename S::value_type, std::byte>
 class codec {
 	template<class> friend class data_item;
+	template<class> friend class array_item;
+	template<class> friend class map_item;
 
 public:
 	template<bool> class itr__;
@@ -473,6 +475,7 @@ public:
 	using const_reference = const data_item<const_iterator>;
 	using difference_type = std::ptrdiff_t;
 	using size_type = std::size_t;
+	using data_iterator = typename S::const_iterator;
 
 	/*
 	 * iterators
@@ -481,6 +484,8 @@ public:
 	class itr__ {
 		friend class codec;
 		template<class> friend class data_item;
+		template<class> friend class array_item;
+		template<class> friend class map_item;
 
 	public:
 		using container = std::conditional_t<const__, const codec, codec>;
@@ -489,14 +494,17 @@ public:
 						     codec<S>::const_reference,
 						     codec<S>::reference>;
 		using iterator_category = std::random_access_iterator_tag;
+		using data_iterator = codec<S>::data_iterator;
 
 		itr__()
-		: it_{}
-		, c_{}
+		: c_{}
 		{ }
 
-		itr__(size_type it, container *c)
-		: it_{it}
+		itr__(data_iterator data, size_type cont, size_type idx,
+		      container *c)
+		: data_{data}
+		, cont_{cont}
+		, idx_{idx}
 		, c_{c}
 		{ }
 
@@ -505,65 +513,69 @@ public:
 		itr__ &operator=(const itr__ &) = default;
 
 		/* iterator->const_iterator conversion */
-		template<bool c = const__, class = std::enable_if_t<c>>
 		itr__(const itr__<false> &r)
-		: it_{r.it_}
+		requires const__
+		: data_{r.data_}
+		, cont_{r.cont_}
+		, idx_{r.idx_}
 		, c_{r.c_}
 		{ }
 
 		std::strong_ordering
 		operator<=>(const itr__ &r) const
 		{
-			return it_ <=> r.it_;
+			CBORXX_ASSERT(c_ && c_ == r.c_);
+			return data_ <=> r.data_;
 		}
 
 		bool
 		operator==(const itr__ &r) const
 		{
-			return it_ == r.it_;
+			CBORXX_ASSERT(c_ && c_ == r.c_);
+			return data_ == r.data_;
 		}
 
 		itr__ &
 		operator++()
 		{
-			++it_;
-			return *this;
+			CBORXX_ASSERT(c_);
+			return *this = c_->next(*this);
 		}
 
 		itr__
 		operator++(int)
 		{
-			auto tmp{*this};
-			++it_;
+			auto tmp = *this;
+			++*this;
 			return tmp;
 		}
 
 		itr__ &
 		operator--()
 		{
-			--it_;
-			return *this;
+			CBORXX_ASSERT(c_);
+			return *this = c_->prev(*this);
 		}
 
 		itr__
 		operator--(int)
 		{
-			auto tmp{*this};
-			--it_;
+			auto tmp = *this;
+			--*this;
 			return tmp;
 		}
 
 		itr__ &
 		operator+=(size_type d)
 		{
-			it_ += d;
-			return *this;
+			CBORXX_ASSERT(c_);
+			return *this = c_->next(*this, d);
 		}
 
 		itr__
 		operator+(size_type d) const
 		{
-			auto tmp{*this};
+			auto tmp = *this;
 			return tmp += d;
 		}
 
@@ -577,21 +589,23 @@ public:
 		itr__ &
 		operator-=(size_type d)
 		{
-			it_ -= d;
-			return *this;
+			CBORXX_ASSERT(c_);
+			return *this = c_->prev(*this, d);
 		}
 
 		itr__
 		operator-(size_type d) const
 		{
-			auto tmp{*this};
+			auto tmp = *this;
 			return tmp -= d;
 		}
 
 		difference_type
 		operator-(const itr__<true> &r) const
 		{
-			return it_ - r.it_;
+			CBORXX_ASSERT(c_ && c_ == r.c_);
+			CBORXX_ASSERT(cont_ == r.cont_);
+			return idx_ - r.idx_;
 		}
 
 		reference
@@ -612,18 +626,25 @@ public:
 		operator[](size_type d) const
 		{
 			CBORXX_ASSERT(c_);
-			CBORXX_ASSERT(it_ + d < std::size(*c_));
 			return *this + d;
 		}
 
+	private:
 		itr__
-		next() const
+		enter_container() const
 		{
-			return reference(*this).next().data();
+			return {data_ + ih::get_size(data_), cont_ + 1, 0, c_};
 		}
 
-	private:
-		size_type it_;
+		itr__
+		next_item() const
+		{
+			return {data_ + ih::get_size(data_), cont_, idx_ + 1, c_};
+		}
+
+		data_iterator data_;
+		size_type cont_;
+		size_type idx_;
 		container *c_;
 	};
 
@@ -652,37 +673,37 @@ public:
 	iterator
 	begin()
 	{
-		return {0, this};
+		return {std::begin(s_), 0, 0, this};
 	}
 
 	const_iterator
 	begin() const
 	{
-		return {0, this};
+		return {std::begin(s_), 0, 0, this};
 	}
 
 	const_iterator
 	cbegin() const
 	{
-		return {0, this};
+		return {std::begin(s_), 0, 0, this};
 	}
 
 	iterator
 	end()
 	{
-		return {size(), this};
+		return {std::end(s_), 0, size(), this};
 	}
 
 	const_iterator
 	end() const
 	{
-		return {size(), this};
+		return {std::end(s_), 0, size(), this};
 	}
 
 	const_iterator
 	cend() const
 	{
-		return {size(), this};
+		return {std::end(s_), 0, size(), this};
 	}
 
 	/* reverse_iterator rbegin() */
@@ -703,7 +724,7 @@ public:
 	void
 	push_back(const auto &...v)
 	{
-		encode_sequence(std::end(s_), v...);
+		encode_sequence({std::end(s_), 0}, v...);
 	}
 
 	/* void pop_front() */
@@ -713,14 +734,14 @@ public:
 	operator[](size_type i)
 	{
 		CBORXX_ASSERT(i < size());
-		return iterator{i, this};
+		return next(begin(), i);
 	}
 
 	const_reference
 	operator[](size_type i) const
 	{
 		CBORXX_ASSERT(i < size());
-		return const_iterator{i, this};
+		return next(begin(), i);
 	}
 
 	/* reference at(size_type); */
@@ -734,10 +755,9 @@ public:
 	/* iterator erase(const_iterator pos) */
 
 	iterator
-	erase(const_iterator begin, const_iterator end)
+	erase(const_iterator b, const_iterator e)
 	{
-		s_.erase(data(begin), data(end));
-		return {begin.it_, this};
+		return {s_.erase(b.data_, e.data_), b.cont_, b.idx_, this};
 	}
 
 	void
@@ -754,13 +774,10 @@ public:
 	size_type
 	size() const
 	{
-#warning fixme: stupid version just to get tests running
-		size_type n = 0;
-		if (s_.empty())
-			return 0;
-		for (auto p = std::begin(s_); p != std::end(s_); p += ih::get_size(p))
-			++n;
-		return n;
+		/* TODO: cache size */
+		auto it = begin();
+		while (it.data_ != std::end(s_)) ++it;
+		return it.idx_;
 	}
 
 	/* size_type max_size() const */
@@ -781,86 +798,115 @@ public:
 	iterator
 	replace(const_iterator p, const_iterator v)
 	{
-#warning fixme: stupid version just to get tests running
 		/* this is tricky as erase invalidates 'v' and insert cannot
 		 * take iterators into *this, so, take a copy for now */
-		S tmp{data(v), data(next(v))};
+		S tmp{v.data_, next(v).data_};
 		p = erase(p, next(p));
-		s_.insert(data(p), std::begin(tmp), std::end(tmp));
-		return {p.it_, this};
+		return {s_.insert(p.data_, std::begin(tmp), std::end(tmp)),
+			p.cont_, p.idx_, this};
 	}
 
 	iterator
 	replace(const_iterator p, const item &v)
 	{
-#warning fixme: stupid version just to get tests running
 		/* TODO: resize & overwrite existing item */
 		p = erase(p, next(p));
-		encode_item(data(p), v);
-		return {p.it_, this};
+		auto [it, sz] = encode_item({p.data_, 0}, v);
+		return {it, p.cont_, p.idx_, this};
 	}
 
 	/*
-	 * next - get next cbor item at this level
+	 * next - get nth next cbor item at this level
 	 */
 	template<class I>
 	requires std::is_convertible_v<I, const_iterator>
 	I
-	next(I i) const
+	next(I it, size_type n = 1) const
 	{
-		CBORXX_ASSERT(i != end());
-		return i.next();
+		/* TODO: optimise by caching item offsets? */
+		while (n--) {
+			CBORXX_ASSERT(it.data_ != std::end(s_));
+			it = data_item(it).next().data();
+		}
+		return it;
+	}
+
+	/*
+	 * prev - get nth previous cbor item at this level
+	 */
+	template<class I>
+	requires std::is_convertible_v<I, const_iterator>
+	I
+	prev(I it, size_type n = 1) const
+	{
+		CBORXX_ASSERT(n <= it.idx_);
+		auto tmp = begin();
+		while (tmp.cont_ != it.cont_) tmp = tmp.next_item();
+		return next(tmp, it.idx_ - n);
 	}
 
 private:
-	/* get raw cbor storage for item i */
-	auto
-	data(const_iterator i) const
+	using item_span = std::pair<data_iterator, std::size_t>;
+
+	item_span
+	append(const item_span &p, std::span<const typename S::value_type> v)
 	{
-#warning fixme: stupid version just to get tests running
-		auto p = std::begin(s_);
-		auto len = ih::get_size(p);
-		for (size_type n = 0; n < i.it_; ++n)
-			len = ih::get_size(p += len);
-		return p;
+		auto [it, sz] = p;
+		return {s_.insert(it + sz, std::begin(v), std::end(v)) - sz,
+			sz + std::size(v)};
 	}
 
+	item_span
+	append(const item_span &p, typename S::value_type v)
+	{
+		return append(p, std::span(&v, 1));
+	}
+
+	item_span
+	append(const item_span &p, std::initializer_list<typename S::value_type> v)
+	{
+		return append(p, std::span(std::begin(v), std::size(v)));
+	}
+
+	/*
+	 * encode_ih - encode CBOR item head
+	 */
 	template<class U>
 	requires std::is_unsigned_v<U>
-	typename S::iterator
-	encode_ih(typename S::iterator p, ih::major m, U arg)
+	item_span
+	encode_ih(item_span p, ih::major m, U arg)
 	{
 		if (arg <= 23)
-			return s_.insert(p, ih::make(m, arg)) + 1;
+			return append(p, ih::make(m, arg));
 		else if (arg <= std::numeric_limits<uint8_t>::max()) {
 			std::array<std::byte, 2> b{
 				ih::make(m, ih::ai::byte),
 				static_cast<std::byte>(arg)};
-			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
+			return append(p, b);
 		} else if (arg <= std::numeric_limits<uint16_t>::max()) {
 			std::array<std::byte, 3> b{ih::make(m, ih::ai::word)};
 			write_be(&b[1], static_cast<uint16_t>(arg));
-			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
+			return append(p, b);
 		} else if (arg <= std::numeric_limits<uint32_t>::max()) {
 			std::array<std::byte, 5> b{ih::make(m, ih::ai::dword)};
 			write_be(&b[1], static_cast<uint32_t>(arg));
-			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
+			return append(p, b);
 		} else {
 			std::array<std::byte, 9> b{ih::make(m, ih::ai::qword)};
 			write_be(&b[1], arg);
-			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
+			return append(p, b);
 		}
 	}
 
-	typename S::iterator
-	encode_item(typename S::iterator p, const item &i)
+	item_span
+	encode_item(item_span p, const item &i)
 	{
 		std::visit([&](auto &v) { p = encode(p, v); }, i);
 		return p;
 	}
 
-	typename S::iterator
-	encode_sequence(typename S::iterator p, const auto &...a)
+	item_span
+	encode_sequence(item_span p, const auto &...a)
 	{
 		((p = encode(p, a)), ...);
 		return p;
@@ -868,82 +914,74 @@ private:
 
 	template<class T>
 	requires std::is_floating_point_v<T>
-	typename S::iterator
-	encode(typename S::iterator p, T v)
+	item_span
+	encode(item_span p, T v)
 	{
 		/* nan is encoded as 2-byte float */
-		if (std::isnan(v)) {
-			auto b = {ih::fp16, 0x7e_b, 0x00_b};
-			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
-		}
-
+		if (std::isnan(v))
+			return append(p, {ih::fp16, 0x7e_b, 0x00_b});
 		/* infinity is encoded as 2-byte float */
-		if (std::isinf(v)) {
-			auto b = {ih::fp16, v > 0 ? 0x7c_b : 0xfc_b, 0x00_b};
-			return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
-		}
+		if (std::isinf(v))
+			return append(p, {ih::fp16, v > 0 ? 0x7c_b : 0xfc_b, 0x00_b});
 
 		/* encode doubles as float when no data is lost */
-		if (std::is_same_v<T, double> && v == static_cast<float>(v)) {
+		if (std::is_same_v<T, double> && v == static_cast<float>(v))
 			return encode(p, static_cast<float>(v));
-		}
 
 		std::array<std::byte, sizeof v + 1> b{
 				  sizeof v == 4 ? ih::fp32 : ih::fp32};
 		write_be(&b[1], &v);
-		return s_.insert(p, std::begin(b), std::end(b)) + std::size(b);
+		return append(p, b);
 	}
 
 	template<class T>
 	requires std::is_integral_v<T>
-	typename S::iterator
-	encode(typename S::iterator p, T v)
+	item_span
+	encode(item_span p, T v)
 	{
 		return encode_ih(p, v < 0 ? ih::major::negint : ih::major::posint,
 				 std::make_unsigned_t<T>(v < 0 ? -v - 1 : v));
 	}
 
-	typename S::iterator
-	encode(typename S::iterator p, std::nullptr_t)
+	item_span
+	encode(item_span p, std::nullptr_t)
 	{
-		return s_.insert(p, ih::null) + 1;
+		return append(p, ih::null);
 	}
 
-	typename S::iterator
-	encode(typename S::iterator p, undefined)
+	item_span
+	encode(item_span p, undefined)
 	{
-		return s_.insert(p, ih::undefined) + 1;
+		return append(p, ih::undefined);
 	}
 
-	typename S::iterator
-	encode(typename S::iterator p, bool v)
+	item_span
+	encode(item_span p, bool v)
 	{
-		return s_.insert(p, v ? ih::bool_true : ih::bool_false) + 1;
+		return append(p, v ? ih::bool_true : ih::bool_false);
 	}
 
-	typename S::iterator
-	encode(typename S::iterator p, std::span<const typename S::value_type> v)
+	item_span
+	encode(item_span p, std::span<const typename S::value_type> v)
 	{
-		return s_.insert(encode_ih(p, ih::major::bytes, std::size(v)),
-				 std::begin(v), std::end(v)) + std::size(v);
+		return append(encode_ih(p, ih::major::bytes, std::size(v)), v);
 	}
 
-	typename S::iterator
-	encode(typename S::iterator p, const char *v)
+	item_span
+	encode(item_span p, const char *v)
 	{
 		return encode(p, std::string_view(v));
 	}
 
-	typename S::iterator
-	encode(typename S::iterator p, std::string_view v)
+	item_span
+	encode(item_span p, std::string_view v)
 	{
 		auto vb = as_bytes(std::span(std::data(v), std::size(v)));
-		return s_.insert(encode_ih(p, ih::major::utf8, std::size(vb)),
-				 std::begin(vb), std::end(vb)) + std::size(vb);
+		return append(encode_ih(p, ih::major::utf8, std::size(vb)), vb);
 	}
 
-	typename S::iterator
-	encode(typename S::iterator p, const array &a)
+	item_span
+	encode(item_span p, const array &a)
 	{
 		p = encode_ih(p, ih::major::array, std::size(a.init_));
 		for (const auto &i : a.init_)
@@ -951,8 +989,8 @@ private:
 		return p;
 	}
 
-	typename S::iterator
-	encode(typename S::iterator p, const map &m)
+	item_span
+	encode(item_span p, const map &m)
 	{
 		p = encode_ih(p, ih::major::map, std::size(m.init_));
 		for (const auto &i : m.init_)
@@ -960,8 +998,8 @@ private:
 		return p;
 	}
 
-	typename S::iterator
-	encode(typename S::iterator p, const tagged &t)
+	item_span
+	encode(item_span p, const tagged &t)
 	{
 		if (t.tag_ == tag::invalid_1 || t.tag_ == tag::invalid_2 ||
 		    t.tag_ == tag::invalid_3)
@@ -970,8 +1008,88 @@ private:
 		return encode_item(encode_ih(p, ih::major::tag, tv), t.item_[0]);
 	}
 
-
 	S &s_;
+};
+
+/*
+ * array_item
+ */
+template<class I>
+class array_item {
+public:
+	using iterator = typename I::container::iterator;
+	using const_iterator = typename I::container::const_iterator;
+	using size_type = std::size_t;
+
+	array_item(I it)
+	: it_{it}
+	{ }
+
+	array_item(const array_item &) = delete;
+
+	array_item(array_item &&) = delete;
+
+	~array_item() = default;
+
+	iterator
+	begin()
+	requires std::is_same_v<I, iterator>
+	{
+		return it_.enter_container();
+	}
+
+	const_iterator
+	begin() const
+	{
+		return it_.enter_container();
+	}
+
+	const_iterator
+	cbegin() const
+	{
+		return it_.enter_container();
+	}
+
+	iterator
+	end()
+	requires std::is_same_v<I, iterator>
+	{
+		return it_.enter_container() + size();
+	}
+
+	const_iterator
+	end() const
+	{
+		return it_.enter_container() + size();
+	}
+
+	const_iterator
+	cend() const
+	{
+		return it_.enter_container() + size();
+	}
+
+	data_item<I>
+	operator[](size_type i) const
+	{
+		/* TODO: optimise by caching item offsets? */
+		CBORXX_ASSERT(i < size());
+		auto it = it_.enter_container();
+		while (i--)
+			it = data_item(it).next().data();
+		return it;
+	}
+
+	size_type
+	size() const
+	{
+		/* TODO: cache size? */
+		/* TODO: indefinite arrays */
+		return ih::get_arg(it_.data_);
+	}
+
+private:
+	I it_;
 };
 
 /*
@@ -1012,7 +1130,7 @@ public:
 	T
 	get() const
 	{
-		auto d = it_.c_->data(it_);
+		auto d = it_.data_;
 
 		/* booleans */
 		if (std::is_same_v<T, bool>) {
@@ -1053,7 +1171,7 @@ public:
 	get() const
 	{
 		T v;
-		auto d = it_.c_->data(it_);
+		auto d = it_.data_;
 		switch (*d) {
 		case ih::fp16:
 			if (d[2] != 0x00_b)
@@ -1079,7 +1197,7 @@ public:
 	tag
 	get_tag() const
 	{
-		auto d = it_.c_->data(it_);
+		auto d = it_.data_;
 		if (ih::get_major(d) != ih::major::tag)
 			throw std::runtime_error("item is not tagged");
 		return static_cast<cbor::tag>(ih::get_arg(d));
@@ -1087,9 +1205,10 @@ public:
 
 	std::span<const std::byte>
 	get_bytes() const
+	requires std::contiguous_iterator<typename I::data_iterator>
 	{
 		/* throws for indefinite size */
-		auto d = std::to_address(it_.c_->data(it_));
+		auto d = std::to_address(it_.data_);
 		if (ih::get_major(d) != ih::major::bytes)
 			throw std::runtime_error("item is not bytes");
 		auto ih_sz = ih::get_ih_size(d);
@@ -1098,14 +1217,23 @@ public:
 
 	std::string_view
 	get_string() const
+	requires std::contiguous_iterator<typename I::data_iterator>
 	{
 		/* throws for indefinite size */
-		auto d = std::to_address(it_.c_->data(it_));
+		auto d = std::to_address(it_.data_);
 		if (ih::get_major(d) != ih::major::utf8)
 			throw std::runtime_error("item is not a string");
 		auto ih_sz = ih::get_ih_size(d);
 		return {reinterpret_cast<const char *>(d + ih_sz),
 			static_cast<std::string_view::size_type>(ih::get_data_size(d))};
+	}
+
+	array_item<I>
+	get_array() const
+	{
+		if (ih::get_major(it_.data_) != ih::major::array)
+			throw std::runtime_error("item is not an array");
+		return it_;
 	}
 
 	/*
@@ -1114,7 +1242,7 @@ public:
 	cbor::type
 	type() const
 	{
-		auto d = it_.c_->data(it_);
+		auto d = it_.data_;
 		switch (ih::get_major(d)) {
 		case ih::major::posint: {
 			auto sz = ih::get_arg_size(d);
@@ -1189,9 +1317,9 @@ public:
 	data_item<I>
 	untag() const
 	{
-		if (ih::get_major(it_.c_->data(it_)) != ih::major::tag)
+		if (ih::get_major(it_.data_) != ih::major::tag)
 			throw std::runtime_error("data is not tagged");
-		return {it_ + 1};
+		return it_.enter_container();
 	}
 
 	/*
@@ -1200,17 +1328,15 @@ public:
 	data_item<I>
 	next() const
 	{
-		switch (ih::get_major(it_.c_->data(it_))) {
-#warning fixme
+		switch (ih::get_major(it_.data_)) {
 		case ih::major::array:
-//			return array(it_).end();
+			return array_item(it_).end();
 		case ih::major::map:
-//			return map(it_).end();
 			assert(!"todo");
 		case ih::major::tag:
-			return untag().next();
+			return untag().next().it_;
 		default:
-			return {it_ + 1};
+			return it_.next_item();
 		}
 	}
 
