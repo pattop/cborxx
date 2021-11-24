@@ -657,9 +657,12 @@ TEST(codec, array)
 
 	/* encode */
 	cbor::codec e(buf);
-	e.push_back(cbor::array{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
-		    14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
-		    29, 30, 31, cbor::array{"foo", "bar"}, "baz", nullptr});
+	e.push_back(cbor::array{0, 1, 2, 3});
+	auto ea = e[0].get_array();
+	for (int i = 4; i < 32; ++i)
+		ea.push_back(i);
+	ea.push_back(cbor::array{"foo", "bar"});
+	ea.push_back("baz", nullptr);
 
 	/* verify */
 	const std::array exp{
@@ -709,15 +712,15 @@ TEST(codec, array)
 
 	/* decode */
 	const cbor::codec d(exp);
-	const auto &a = d[0].get_array();
+	const auto &da = d[0].get_array();
 	for (auto i = 0; i < 32; ++i)
-		EXPECT_EQ(a[i].get<int>(), i);
-	EXPECT_EQ(a[32].get_array()[0].get_string(), "foo");
-	EXPECT_EQ(a[32].get_array()[1].get_string(), "bar");
-	EXPECT_EQ(a[33].get_string(), "baz");
-	EXPECT_EQ(a[34].type(), cbor::type::null);
+		EXPECT_EQ(da[i].get<int>(), i);
+	EXPECT_EQ(da[32].get_array()[0].get_string(), "foo");
+	EXPECT_EQ(da[32].get_array()[1].get_string(), "bar");
+	EXPECT_EQ(da[33].get_string(), "baz");
+	EXPECT_EQ(da[34].type(), cbor::type::null);
 
-	for (int idx = 0; const auto &i : a) {
+	for (int idx = 0; const auto &i : da) {
 		switch (idx) {
 		case 0 ... 31:
 			EXPECT_EQ(i->get<int>(), idx);

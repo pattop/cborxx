@@ -266,6 +266,36 @@ make(major m, auto a)
 	    static_cast<std::byte>(a);
 }
 
+template<class Arg>
+requires std::is_unsigned_v<Arg>
+constexpr
+std::span<std::byte>
+make(major m, Arg a, std::span<std::byte> b)
+{
+	assert(size(b) >= 9);
+
+	if (a <= 23) {
+		b[0] = make(m, static_cast<ai>(a));
+		return b.first(1);
+	} else if (a <= std::numeric_limits<uint8_t>::max()) {
+		b[0] = ih::make(m, ih::ai::byte);
+		b[1] = static_cast<std::byte>(a);
+		return b.first(2);
+	} else if (a <= std::numeric_limits<uint16_t>::max()) {
+		b[0] = ih::make(m, ih::ai::word);
+		write_be(&b[1], static_cast<uint16_t>(a));
+		return b.first(3);
+	} else if (a <= std::numeric_limits<uint32_t>::max()) {
+		b[0] = ih::make(m, ih::ai::dword);
+		write_be(&b[1], static_cast<uint32_t>(a));
+		return b.first(5);
+	} else {
+		b[0] = ih::make(m, ih::ai::qword);
+		write_be(&b[1], a);
+		return b.first(9);
+	}
+}
+
 /*
  * some useful item head constants
  */
@@ -475,7 +505,8 @@ public:
 	using const_reference = const data_item<const_iterator>;
 	using difference_type = std::ptrdiff_t;
 	using size_type = std::size_t;
-	using data_iterator = typename S::const_iterator;
+	using data_iterator = typename S::iterator;
+	using const_data_iterator = typename S::const_iterator;
 
 	/*
 	 * iterators
@@ -494,7 +525,9 @@ public:
 						     codec<S>::const_reference,
 						     codec<S>::reference>;
 		using iterator_category = std::random_access_iterator_tag;
-		using data_iterator = codec<S>::data_iterator;
+		using data_iterator = std::conditional_t<const__,
+						codec<S>::const_data_iterator,
+						codec<S>::data_iterator>;
 
 		itr__()
 		: c_{}
@@ -724,7 +757,7 @@ public:
 	void
 	push_back(const auto &...v)
 	{
-		encode_sequence({std::end(s_), 0}, v...);
+		encode_sequence(make_data_range(std::end(s_), 0), v...);
 	}
 
 	/* void pop_front() */
@@ -796,10 +829,11 @@ public:
 	 * replace - replace a cbor data item
 	 */
 	iterator
-	replace(const_iterator p, const_iterator v)
+	replace(iterator p, const_iterator v)
 	{
 		/* this is tricky as erase invalidates 'v' and insert cannot
 		 * take iterators into *this, so, take a copy for now */
+		/* TODO: resize & overwrite existing item */
 		S tmp{v.data_, next(v).data_};
 		p = erase(p, next(p));
 		return {s_.insert(p.data_, std::begin(tmp), std::end(tmp)),
@@ -807,11 +841,11 @@ public:
 	}
 
 	iterator
-	replace(const_iterator p, const item &v)
+	replace(iterator p, const item &v)
 	{
 		/* TODO: resize & overwrite existing item */
 		p = erase(p, next(p));
-		auto [it, sz] = encode_item({p.data_, 0}, v);
+		auto [it, sz] = encode_item(make_data_range(p.data_, 0), v);
 		return {it, p.cont_, p.idx_, this};
 	}
 
@@ -846,76 +880,103 @@ public:
 	}
 
 private:
-	using item_span = std::pair<data_iterator, std::size_t>;
+	template<class It>
+	requires std::is_convertible_v<It, const_data_iterator>
+	using data_range = std::pair<It, std::size_t>;
 
-	item_span
-	append(const item_span &p, std::span<const typename S::value_type> v)
+	/* REVISIT: clang 13.0.0 doesn't support CTAD for alias templates */
+	template<class It>
+	static
+	data_range<It>
+	make_data_range(It it, std::size_t sz)
+	{
+		return {it, sz};
+	}
+
+	template<class It>
+	data_range<It>
+	append(data_range<It> p, std::span<const typename S::value_type> v)
 	{
 		auto [it, sz] = p;
 		return {s_.insert(it + sz, std::begin(v), std::end(v)) - sz,
 			sz + std::size(v)};
 	}
 
-	item_span
-	append(const item_span &p, typename S::value_type v)
+	template<class It>
+	data_range<It>
+	append(data_range<It> p, typename S::value_type v)
 	{
 		return append(p, std::span(&v, 1));
 	}
 
-	item_span
-	append(const item_span &p, std::initializer_list<typename S::value_type> v)
+	template<class It>
+	data_range<It>
+	append(data_range<It> p, std::initializer_list<typename S::value_type> v)
 	{
 		return append(p, std::span(std::begin(v), std::size(v)));
+	}
+
+	template<class It>
+	data_range<It>
+	replace(data_range<It> p, std::span<const std::byte> v)
+	{
+		auto [it, sz] = p;
+		if (sz == std::size(v)) [[likely]];
+		else if (sz < std::size(v))
+			it = s_.insert(it, std::size(v) - sz, {});
+		else if (sz > std::size(v)) [[unlikely]]
+			it = s_.erase(it, it + (sz - std::size(v)));
+		std::copy(std::begin(v), std::end(v), it);
+		return {it, std::size(v)};
 	}
 
 	/*
 	 * encode_ih - encode CBOR item head
 	 */
-	template<class U>
+	template<class It, class U>
 	requires std::is_unsigned_v<U>
-	item_span
-	encode_ih(item_span p, ih::major m, U arg)
+	data_range<It>
+	encode_ih(data_range<It> p, ih::major m, U arg)
 	{
-		if (arg <= 23)
-			return append(p, ih::make(m, arg));
-		else if (arg <= std::numeric_limits<uint8_t>::max()) {
-			std::array<std::byte, 2> b{
-				ih::make(m, ih::ai::byte),
-				static_cast<std::byte>(arg)};
-			return append(p, b);
-		} else if (arg <= std::numeric_limits<uint16_t>::max()) {
-			std::array<std::byte, 3> b{ih::make(m, ih::ai::word)};
-			write_be(&b[1], static_cast<uint16_t>(arg));
-			return append(p, b);
-		} else if (arg <= std::numeric_limits<uint32_t>::max()) {
-			std::array<std::byte, 5> b{ih::make(m, ih::ai::dword)};
-			write_be(&b[1], static_cast<uint32_t>(arg));
-			return append(p, b);
-		} else {
-			std::array<std::byte, 9> b{ih::make(m, ih::ai::qword)};
-			write_be(&b[1], arg);
-			return append(p, b);
-		}
+		std::array<std::byte, 9> tmp;
+		return append(p, ih::make(m, arg, tmp));
 	}
 
-	item_span
-	encode_item(item_span p, const item &i)
+	/*
+	 * set_ih_arg
+	 */
+	template<class It, class U>
+	requires std::is_unsigned_v<U>
+	data_range<It>
+	set_ih_arg(data_range<It> p, U arg)
+	{
+		std::array<std::byte, 9> tmp;
+		auto n = ih::make(ih::get_major(p.first), arg, tmp);
+		auto osz = ih::get_ih_size(p.first);
+		auto [it, sz] = replace(make_data_range(p.first, osz), n);
+		return {it, p.second - osz + sz};
+	}
+
+	template<class It>
+	data_range<It>
+	encode_item(data_range<It> p, const item &i)
 	{
 		std::visit([&](auto &v) { p = encode(p, v); }, i);
 		return p;
 	}
 
-	item_span
-	encode_sequence(item_span p, const auto &...a)
+	template<class It>
+	data_range<It>
+	encode_sequence(data_range<It> p, const auto &...a)
 	{
 		((p = encode(p, a)), ...);
 		return p;
 	}
 
-	template<class T>
+	template<class It, class T>
 	requires std::is_floating_point_v<T>
-	item_span
-	encode(item_span p, T v)
+	data_range<It>
+	encode(data_range<It> p, T v)
 	{
 		/* nan is encoded as 2-byte float */
 		if (std::isnan(v))
@@ -934,54 +995,61 @@ private:
 		return append(p, b);
 	}
 
-	template<class T>
+	template<class It, class T>
 	requires std::is_integral_v<T>
-	item_span
-	encode(item_span p, T v)
+	data_range<It>
+	encode(data_range<It> p, T v)
 	{
 		return encode_ih(p, v < 0 ? ih::major::negint : ih::major::posint,
 				 std::make_unsigned_t<T>(v < 0 ? -v - 1 : v));
 	}
 
-	item_span
-	encode(item_span p, std::nullptr_t)
+	template<class It>
+	data_range<It>
+	encode(data_range<It> p, std::nullptr_t)
 	{
 		return append(p, ih::null);
 	}
 
-	item_span
-	encode(item_span p, undefined)
+	template<class It>
+	data_range<It>
+	encode(data_range<It> p, undefined)
 	{
 		return append(p, ih::undefined);
 	}
 
-	item_span
-	encode(item_span p, bool v)
+	template<class It>
+	data_range<It>
+	encode(data_range<It> p, bool v)
 	{
 		return append(p, v ? ih::bool_true : ih::bool_false);
 	}
 
-	item_span
-	encode(item_span p, std::span<const typename S::value_type> v)
+	template<class It>
+	data_range<It>
+	encode(data_range<It> p, std::span<const typename S::value_type> v)
 	{
 		return append(encode_ih(p, ih::major::bytes, std::size(v)), v);
 	}
 
-	item_span
-	encode(item_span p, const char *v)
+	template<class It>
+	data_range<It>
+	encode(data_range<It> p, const char *v)
 	{
 		return encode(p, std::string_view(v));
 	}
 
-	item_span
-	encode(item_span p, std::string_view v)
+	template<class It>
+	data_range<It>
+	encode(data_range<It> p, std::string_view v)
 	{
 		auto vb = as_bytes(std::span(std::data(v), std::size(v)));
 		return append(encode_ih(p, ih::major::utf8, std::size(vb)), vb);
 	}
 
-	item_span
-	encode(item_span p, const array &a)
+	template<class It>
+	data_range<It>
+	encode(data_range<It> p, const array &a)
 	{
 		p = encode_ih(p, ih::major::array, std::size(a.init_));
 		for (const auto &i : a.init_)
@@ -989,8 +1057,9 @@ private:
 		return p;
 	}
 
-	item_span
-	encode(item_span p, const map &m)
+	template<class It>
+	data_range<It>
+	encode(data_range<It> p, const map &m)
 	{
 		p = encode_ih(p, ih::major::map, std::size(m.init_));
 		for (const auto &i : m.init_)
@@ -998,8 +1067,9 @@ private:
 		return p;
 	}
 
-	item_span
-	encode(item_span p, const tagged &t)
+	template<class It>
+	data_range<It>
+	encode(data_range<It> p, const tagged &t)
 	{
 		if (t.tag_ == tag::invalid_1 || t.tag_ == tag::invalid_2 ||
 		    t.tag_ == tag::invalid_3)
@@ -1067,6 +1137,18 @@ public:
 	cend() const
 	{
 		return it_.enter_container() + size();
+	}
+
+	void
+	push_back(const auto &...v)
+	{
+		/* modify the item head at it_ with new size */
+		auto p = it_.c_->set_ih_arg(
+			I::container::make_data_range(it_.data_, std::distance(it_.data_, end().data_)),
+			size() + sizeof...(v));
+		auto [it, sz] = it_.c_->encode_sequence(p, v...);
+		/* set_ih_arg and encode_sequence both invalidate it_.data_ */
+		it_.data_ = it;
 	}
 
 	data_item<I>
