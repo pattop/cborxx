@@ -1,4 +1,4 @@
-CXXFLAGS := -ggdb -std=c++20 -Wall
+CXXFLAGS := -ggdb -std=c++20 -Wall -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC
 
 check: test/passed
 
